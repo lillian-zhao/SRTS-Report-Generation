@@ -109,7 +109,7 @@ function headerCell(text: string, width = 4680) {
   return cell(text, { bold: true, color: C.white, bg: C.domiBlue, width, size: 20 });
 }
 
-function sectionHeading(text: string, level: HeadingLevel = HeadingLevel.HEADING_1) {
+function sectionHeading(text: string, level: (typeof HeadingLevel)[keyof typeof HeadingLevel] = HeadingLevel.HEADING_1) {
   return new Paragraph({
     heading: level,
     spacing: { before: 280, after: 120 },
@@ -257,8 +257,13 @@ const pageLayout = {
   },
 };
 
-async function toBuffer(doc: Document): Promise<Buffer> {
-  return Buffer.from(await Packer.toBuffer(doc));
+async function toBuffer(doc: Document): Promise<ArrayBuffer> {
+  const buf = await Packer.toBuffer(doc);
+  // Explicitly allocate a plain ArrayBuffer and copy in — avoids the
+  // ArrayBuffer | SharedArrayBuffer union that TypeScript can't narrow.
+  const copy = new ArrayBuffer(buf.byteLength);
+  new Uint8Array(copy).set(buf);
+  return copy;
 }
 
 // ── Helper: map Yes/No/Partial survey values to colored severity ──────────────
@@ -275,7 +280,7 @@ function severityColor(val: string): string {
 // 1. DOMI Internal Report
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildDomiReport(ctx: AuditContext, llm: DomiContent): Promise<Buffer> {
+export async function buildDomiReport(ctx: AuditContext, llm: DomiContent): Promise<ArrayBuffer> {
   const children = [
 
     coverBlock(
@@ -423,7 +428,7 @@ export async function buildDomiReport(ctx: AuditContext, llm: DomiContent): Prom
 // 2. School & Community Partner Report
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolCommunityContent): Promise<Buffer> {
+export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolCommunityContent): Promise<ArrayBuffer> {
   const children = [
 
     coverBlock(
@@ -513,7 +518,7 @@ export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolC
 // 3. Public Community Update
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildPublicReport(ctx: AuditContext, llm: PublicContent): Promise<Buffer> {
+export async function buildPublicReport(ctx: AuditContext, llm: PublicContent): Promise<ArrayBuffer> {
   const children = [
 
     new Table({

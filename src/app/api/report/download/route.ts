@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     const ctx = buildAuditContext(body.school, body.surveyDate, preFeatures, postFeatures);
 
-    let docBuffer: Buffer;
+    let docBuffer: ArrayBuffer;
     let filename: string;
     const safeSchool = body.school.replace(/[^a-z0-9]/gi, "_").slice(0, 40);
     const safeDate = ctx.dateDisplay.replace(/[^a-z0-9]/gi, "-").slice(0, 20);
@@ -77,7 +77,11 @@ export async function POST(request: Request) {
       filename = `SRTS_Public_Update_${safeSchool}_${safeDate}.docx`;
     }
 
-    return new Response(docBuffer, {
+    const blob = new Blob([docBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+
+    return new Response(blob, {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
