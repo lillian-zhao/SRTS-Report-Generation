@@ -599,6 +599,16 @@ export default function Home() {
       {/* ── Footer padding ── */}
       <div className="h-8" />
       </div>
+
+      {/* ── Developer tools button (fixed, bottom-right) ── */}
+      <button
+        type="button"
+        title="Developer tools"
+        className="fixed bottom-4 right-4 z-50 flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-500 opacity-40 shadow hover:opacity-100 hover:bg-gray-300 transition-all text-xs font-mono"
+        onClick={() => window.open("/dev", "_blank")}
+      >
+        {"</>"}
+      </button>
     </main>
   );
 }
