@@ -3,6 +3,7 @@
     "ARCGIS_PORTAL_URL": "https://www.arcgis.com",
     "ARCGIS_TOKEN_CLIENT": "referer",
     "ARCGIS_CLIENT_ID": "DnIWQ9bVXF9S300S",
+    "ARCGIS_REFERER": "https://srts-report-generation.vercel.app",
     "ARCGIS_PRE_SURVEY_LAYER_URL": "https://services1.arcgis.com/YZCmUqbcsUpOKfj7/arcgis/rest/services/survey123_a319154d30174363a7f1332a41a4168f_results/FeatureServer/0",
     "ARCGIS_POST_SURVEY_LAYER_URL": "https://services1.arcgis.com/YZCmUqbcsUpOKfj7/arcgis/rest/services/survey123_98dcc2e10b5d4b7296d0bb72d7722e4a_results/FeatureServer",
     "ARCGIS_SCHOOL_FIELD": "which_school_is_this_audit_for",
@@ -11,7 +12,8 @@
   },
   "build": {
     "env": {
-      "NEXT_PUBLIC_ARCGIS_PORTAL_URL": "https://www.arcgis.com"
+      "NEXT_PUBLIC_ARCGIS_PORTAL_URL": "https://www.arcgis.com",
+      "NEXT_PUBLIC_ARCGIS_REFERER": "https://srts-report-generation.vercel.app"
     }
   }
 }

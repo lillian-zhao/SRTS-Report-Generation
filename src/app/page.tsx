@@ -395,7 +395,7 @@ export default function Home() {
             — set <strong>Client</strong> to <strong>Referer</strong> and{" "}
             <strong>Referer URL</strong> to{" "}
             <code className="rounded bg-zinc-200 px-1">
-              http://localhost:3000
+              {process.env.NEXT_PUBLIC_ARCGIS_REFERER ?? "http://localhost:3000"}
             </code>
             , then paste the token below.
           </p>
