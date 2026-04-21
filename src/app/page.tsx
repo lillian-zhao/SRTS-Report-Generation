@@ -387,11 +387,12 @@ export default function Home() {
       {/* ── How it works ── */}
       <section>
         <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">How it works</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           {[
             { step: "1", icon: "🔑", title: "Sign In", desc: "Authenticate with your ArcGIS Pittsburgh account to access survey data." },
             { step: "2", icon: "📋", title: "Select an Audit", desc: "Choose the walkability audit you want to generate a report for." },
-            { step: "3", icon: "⬇", title: "Download Report", desc: "Generate and download an AI-written report tailored to your audience." },
+            { step: "3", icon: "🔍", title: "Preview Data", desc: "Review the survey responses that will be used to generate your report." },
+            { step: "4", icon: "⬇", title: "Download Report", desc: "Generate and download an AI-written report tailored to your audience." },
           ].map(({ step, icon, title, desc }) => (
             <div key={step} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-2">
@@ -516,7 +517,7 @@ export default function Home() {
                 </select>
               </div>
               {selectedAudit && (
-                <p className="text-sm text-emerald-700 font-medium">✓ Selected — scroll down to download your report.</p>
+                <p className="text-sm text-emerald-700 font-medium">✓ Selected — scroll down to preview your data.</p>
               )}
             </div>
           )}
@@ -528,6 +529,7 @@ export default function Home() {
         <section className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-6 py-4">
             <div className="flex items-center gap-3">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shrink-0">3</span>
               <span className="text-xl">🔍</span>
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Preview Survey Data</h2>
@@ -690,15 +692,15 @@ export default function Home() {
         </section>
       )}
 
-      {/* ── Step 3: Download Reports ── */}
+      {/* ── Step 4: Download Reports ── */}
       <section className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-opacity ${!selectedAudit ? "opacity-40 pointer-events-none" : "border-gray-200"}`}>
         <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-4">
-          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white ${selectedAudit ? "bg-blue-600" : "bg-gray-300"}`}>3</span>
+          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white ${selectedAudit ? "bg-blue-600" : "bg-gray-300"}`}>4</span>
           <h2 className="text-lg font-semibold text-gray-900">Download Report</h2>
         </div>
         <div className="px-6 py-8">
           {!selectedAudit ? (
-            <p className="text-gray-400 italic">Complete Steps 1 &amp; 2 first.</p>
+            <p className="text-gray-400 italic">Complete Steps 1–3 first.</p>
           ) : (
             <div className="flex flex-col gap-6">
               <p className="text-gray-600">
