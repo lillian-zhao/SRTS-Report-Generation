@@ -346,112 +346,27 @@ export default function Home() {
     }
   }
 
+  const isLoggedIn = !!token;
+  const hasAudits = audits.length > 0;
+
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-10">
-      <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          SRTS Report Builder (ArcGIS data retrieval)
-        </h1>
-        <p className="mt-2 text-sm text-zinc-600">
-          Sign in with ArcGIS credentials, pick an audit (school + date), then
-          run data retrieval through the serverless backend.
-        </p>
-      </section>
-
-      <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-zinc-900">1) ArcGIS Login</h2>
-        <div className="mt-4">
-          <a
-            href="/api/arcgis/oauth/start"
-            className="inline-flex rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Sign in with ArcGIS OAuth
-          </a>
-          <p className="mt-2 text-xs text-zinc-600">
-            Use this for organization/SSO accounts. Keep username/password below
-            only if your ArcGIS account supports direct token login.
-          </p>
-        </div>
-        {/* Username/password login — disabled for production (OAuth only)
-        <form onSubmit={handleLogin} className="mt-4 grid gap-3 sm:max-w-lg">
-          <p className="text-xs text-zinc-600">
-            Use the same <strong>User name</strong> shown under your ArcGIS
-            profile (not always your email). If you use 2FA, password-based
-            token login may fail here.
-          </p>
-          <input
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400"
-            placeholder="ArcGIS username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            required
-          />
-          <input
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400"
-            placeholder="ArcGIS password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-          <button
-            type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-500"
-            disabled={isLoggingIn}
-          >
-            {isLoggingIn ? "Signing in..." : "Login + Load Audits"}
-          </button>
-        </form>
-        */}
-
-        {/* Paste-token fallback — disabled for production (OAuth only)
-        <div className="mt-6 rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-4 sm:max-w-lg">
-          <p className="text-sm font-medium text-zinc-900">
-            Or paste an ArcGIS token
-          </p>
-          <p className="mt-1 text-xs text-zinc-600">
-            Generate a token at{" "}
-            <a
-              href="https://www.arcgis.com/sharing/rest/generateToken"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              arcgis.com/sharing/rest/generateToken
-            </a>{" "}
-            — set <strong>Client</strong> to <strong>Referer</strong> and{" "}
-            <strong>Referer URL</strong> to{" "}
-            <code className="rounded bg-zinc-200 px-1">
-              {process.env.NEXT_PUBLIC_ARCGIS_REFERER ?? "http://localhost:3000"}
-            </code>
-            , then paste the token below.
-          </p>
-          <textarea
-            className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-xs text-zinc-900 placeholder:text-zinc-400"
-            placeholder="Paste token..."
-            rows={3}
-            value={pastedToken}
-            onChange={(event) => setPastedToken(event.target.value)}
-          />
-          <button
-            type="button"
-            className="mt-2 rounded-md bg-zinc-600 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
-            onClick={handleUsePastedToken}
-          >
-            Use token + load audits
-          </button>
-        </div>
-        */}
-        {token && (
-          <div className="mt-3 flex flex-col gap-3 sm:max-w-lg">
-            <div className="flex items-center gap-4">
-              <p className="text-sm text-emerald-700">
-                Logged in. Token expires:{" "}
-                {tokenExpires ? new Date(tokenExpires).toLocaleString() : "unknown"}
-              </p>
+    <main className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="mx-auto max-w-4xl flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">SRTS Report Builder</h1>
+            <p className="text-sm text-gray-500">Safe Routes to School · Pittsburgh</p>
+          </div>
+          {isLoggedIn && (
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5 text-sm text-emerald-700 font-medium">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                Signed in
+              </span>
               <button
                 type="button"
-                className="text-xs text-zinc-500 underline hover:text-zinc-700"
+                className="text-sm text-gray-400 hover:text-gray-600 underline"
                 onClick={() => {
                   localStorage.removeItem("arcgis_token");
                   localStorage.removeItem("arcgis_token_expires");
@@ -464,269 +379,226 @@ export default function Home() {
                 Sign out
               </button>
             </div>
-            <button
-              type="button"
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-              disabled={isLoadingAudits}
-              onClick={() => loadAudits(token)}
-            >
-              {isLoadingAudits ? "Loading audits…" : "Load Audits"}
-            </button>
-            {auditsError && (
-              <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{auditsError}</p>
-            )}
-            {!auditsError && audits.length > 0 && (
-              <p className="text-xs text-zinc-500">{audits.length} audit{audits.length !== 1 ? "s" : ""} loaded.</p>
-            )}
-          </div>
-        )}
-        {loginError && <p className="mt-3 text-sm text-red-600">{loginError}</p>}
-        <div className="mt-4">
-          <button
-            type="button"
-            className="rounded-md bg-zinc-700 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
-            disabled={!token || isLoadingFields}
-            onClick={loadFieldNames}
-          >
-            {isLoadingFields ? "Checking fields..." : "Check Field Names"}
-          </button>
-          {fieldError && <p className="mt-2 text-sm text-red-600">{fieldError}</p>}
-          {(preFields.length > 0 || postFields.length > 0) && (
-            <div className="mt-3 grid gap-3 lg:grid-cols-2">
-              <div className="rounded-md bg-zinc-100 p-3">
-                <p className="text-sm font-semibold text-zinc-900">
-                  Pre layer fields
-                </p>
-                <p className="mt-1 text-xs text-zinc-600">
-                  Look for your school/date fields here.
-                </p>
-                <ul className="mt-2 max-h-56 list-disc space-y-1 overflow-auto pl-5 text-xs text-zinc-700">
-                  {preFields.map((field) => (
-                    <li key={`pre-${field.name}`}>
-                      {field.name}
-                      {field.alias ? ` (${field.alias})` : ""} -{" "}
-                      {field.type ?? "unknown"}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-md bg-zinc-100 p-3">
-                <p className="text-sm font-semibold text-zinc-900">
-                  Post layer fields
-                </p>
-                <p className="mt-1 text-xs text-zinc-600">
-                  Confirm names match your `.env.local`.
-                </p>
-                <ul className="mt-2 max-h-56 list-disc space-y-1 overflow-auto pl-5 text-xs text-zinc-700">
-                  {postFields.map((field) => (
-                    <li key={`post-${field.name}`}>
-                      {field.name}
-                      {field.alias ? ` (${field.alias})` : ""} -{" "}
-                      {field.type ?? "unknown"}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
           )}
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-4xl px-6 py-10 flex flex-col gap-10">
+      {/* ── How it works ── */}
+      <section>
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">How it works</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {[
+            { step: "1", icon: "🔑", title: "Sign In", desc: "Authenticate with your ArcGIS Pittsburgh account to access survey data." },
+            { step: "2", icon: "📋", title: "Select an Audit", desc: "Choose the walkability audit you want to generate a report for." },
+            { step: "3", icon: "⬇", title: "Download Report", desc: "Generate and download an AI-written report tailored to your audience." },
+          ].map(({ step, icon, title, desc }) => (
+            <div key={step} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">{step}</span>
+                <span className="text-lg">{icon}</span>
+              </div>
+              <p className="font-semibold text-gray-900">{title}</p>
+              <p className="mt-1 text-sm text-gray-500">{desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-zinc-900">
-          2) Select Audit + Retrieve Data
-        </h2>
-        <div className="mt-4 flex flex-col gap-3 sm:max-w-lg">
-          <select
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
-            value={selectedAuditId}
-            onChange={(event) => setSelectedAuditId(event.target.value)}
-            disabled={!token || isLoadingAudits || audits.length === 0}
-          >
-            {audits.length === 0 ? (
-              <option value="">No audits loaded</option>
-            ) : (
-              audits.map((audit) => {
-                const epochMs = Number(audit.surveyDate);
-                const displayDate =
-                  Number.isFinite(epochMs) && epochMs > 1_000_000_000_000
-                    ? new Date(epochMs).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : audit.surveyDate;
-                return (
-                  <option key={audit.id} value={audit.id}>
-                    {audit.school} — {displayDate}
-                  </option>
-                );
-              })
-            )}
-          </select>
-          <button
-            type="button"
-            className="rounded-md bg-zinc-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!selectedAudit || isGenerating}
-            onClick={handleGenerate}
-          >
-            {isGenerating ? "Loading…" : "Preview raw data"}
-          </button>
-          <div className="flex flex-col gap-2 pt-1">
-            <p className="text-xs font-semibold text-zinc-700">Generate AI report (.docx):</p>
-            {(
-              [
-                { type: "domi-internal", label: "DOMI Internal (confidential)", color: "bg-red-700 disabled:bg-red-300" },
-                { type: "school-community", label: "School & Community Report", color: "bg-emerald-600 disabled:bg-emerald-300" },
-                { type: "public-update", label: "Public Community Update", color: "bg-blue-600 disabled:bg-blue-300" },
-              ] as const
-            ).map(({ type, label, color }) => (
-              <button
-                key={type}
-                type="button"
-                className={`rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed ${color}`}
-                disabled={!selectedAudit || downloadingType !== null}
-                onClick={() => handleDownload(type)}
+      {/* ── Step 1: Sign In ── */}
+      <section className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-4">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</span>
+          <h2 className="text-lg font-semibold text-gray-900">Sign In</h2>
+          {isLoggedIn && (
+            <span className="ml-auto flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+              Signed in
+            </span>
+          )}
+        </div>
+        <div className="px-6 py-8">
+          {!isLoggedIn ? (
+            <div className="flex flex-col items-start gap-4">
+              <p className="text-gray-600 max-w-md">
+                Use your Pittsburgh ArcGIS organization account to sign in. This gives the app permission to read your survey data.
+              </p>
+              <a
+                href="/api/arcgis/oauth/start"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
               >
-                {downloadingType === type ? "Generating with Claude…" : `⬇ ${label}`}
-              </button>
-            ))}
-          </div>
-          {downloadError && (
-            <p className="text-sm text-red-600">{downloadError}</p>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                Sign in with ArcGIS
+              </a>
+              {loginError && (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loginError}</p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
+                <svg className="w-5 h-5 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                <p className="text-sm text-emerald-800 font-medium">
+                  You&apos;re signed in.{tokenExpires ? ` Session valid until ${new Date(tokenExpires).toLocaleTimeString()}.` : ""}
+                </p>
+              </div>
+              {!hasAudits && (
+                <div>
+                  <p className="text-gray-600 mb-3">Click below to load your available audits.</p>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+                    disabled={isLoadingAudits}
+                    onClick={() => loadAudits(token!)}
+                  >
+                    {isLoadingAudits ? (
+                      <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Loading audits…</>
+                    ) : "Load Audits"}
+                  </button>
+                  {auditsError && (
+                    <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{auditsError}</p>
+                  )}
+                </div>
+              )}
+              {hasAudits && (
+                <p className="text-sm text-emerald-700 font-medium">
+                  ✓ {audits.length} audit{audits.length !== 1 ? "s" : ""} loaded — scroll down to select one.
+                </p>
+              )}
+            </div>
           )}
         </div>
-
-        <div className="mt-6 rounded-md bg-zinc-100 p-4">
-          <h3 className="text-sm font-semibold text-zinc-900">Streaming status</h3>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-700">
-            {streamMessages.length === 0 ? (
-              <li>No events yet.</li>
-            ) : (
-              streamMessages.map((message, index) => (
-                <li key={`${message}-${index}`}>{message}</li>
-              ))
-            )}
-          </ul>
-        </div>
-
-        {auditContext && (
-          <div className="mt-6 space-y-4">
-            <h3 className="text-sm font-semibold text-zinc-900">Parsed audit data</h3>
-
-            {recordCounts && (
-              <div className={`flex gap-4 rounded-md border px-4 py-3 text-sm ${
-                recordCounts.pre === 0 ? "border-amber-300 bg-amber-50" : "border-green-300 bg-green-50"
-              }`}>
-                <span className={recordCounts.post > 0 ? "text-green-800" : "text-red-700"}>
-                  <strong>Post-survey records:</strong> {recordCounts.post}
-                  {recordCounts.post === 1 && " (only coordinator — planner/traffic not yet submitted)"}
-                  {recordCounts.post === 0 && " ⚠ none found"}
-                </span>
-                <span className={recordCounts.pre > 0 ? "text-green-800" : "text-amber-800"}>
-                  <strong>Pre-survey records:</strong> {recordCounts.pre}
-                  {recordCounts.pre === 0 && " ⚠ none found — pre-survey uses a different date"}
-                </span>
-              </div>
-            )}
-
-            <p className="text-xs text-zinc-500">
-              Rows with data are white; grey rows show fields that were empty or not matched.
-            </p>
-
-            {(
-              [
-                {
-                  heading: "Identity & Route",
-                  keys: ["school","address","dateDisplay","time","weather","coordinator","auditorEmail","role","schoolContact","schoolContactEmail","initiatedBy","previousAudit","routeDescription","preExistingConcerns"],
-                },
-                {
-                  heading: "Mode Split",
-                  keys: ["modeWalk","modeBike","modeTransit","modeBus","modeDropOff","studentCount","designatedRoutes","mainConcerns","landmarks","parentConcerns","parentConcernDetails"],
-                },
-                {
-                  heading: "Infrastructure Findings",
-                  keys: ["adaSignage","vegetationBlocking","poolingWater","immediateHazards","trippingHazards","sidewalkGaps","grantOpportunities","grantDetails","nearbyConstruction","constructionDetails","additionalInfrastructureNotes"],
-                },
-                {
-                  heading: "Traffic & Safety Findings",
-                  keys: ["conflictingSignage","wayfinding","wayfindingLocations","trafficConditions","crashHistory","crashDetails","crosswalks","vehicleSpeeds","crossingGuard","schoolZoneSigns","dropOffConflict","pedestrianGenerators","pedestrianGeneratorDetails","additionalTrafficNotes"],
-                },
-                {
-                  heading: "Summary",
-                  keys: ["topConcern1","topConcern2","topConcern3","overallSeverity","safetyRating","comfortableLetChild","comfortDetails","designatedRouteDetails","participantsPresent","participantsMissing","additionalNotes","additionalComments"],
-                },
-              ] as { heading: string; keys: string[] }[]
-            ).map(({ heading, keys }) => (
-              <div key={heading}>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">{heading}</h4>
-                <table className="w-full text-xs border border-zinc-200 rounded overflow-hidden">
-                  <tbody>
-                    {keys.map((k) => {
-                      const val = auditContext[k] ?? "";
-                      return (
-                        <tr key={k} className={val ? "bg-white" : "bg-zinc-50"}>
-                          <td className="px-3 py-1 font-medium text-zinc-600 w-56 border-b border-zinc-100 whitespace-nowrap">{k}</td>
-                          <td className={`px-3 py-1 border-b border-zinc-100 ${val ? "text-zinc-900" : "text-zinc-400 italic"}`}>
-                            {val || "— not mapped"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-zinc-600">Raw field dumps — use these to verify or fix field name mappings:</p>
-
-              <details className="rounded border border-zinc-200">
-                <summary className="cursor-pointer px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50">
-                  Post-survey raw fields ({postAllFields ? Object.keys(postAllFields).length : 0} fields with data)
-                </summary>
-                {postAllFields && Object.keys(postAllFields).length > 0 ? (
-                  <table className="w-full text-xs">
-                    <tbody>
-                      {Object.entries(postAllFields).map(([k, v]) => (
-                        <tr key={k} className="odd:bg-white even:bg-zinc-50">
-                          <td className="px-3 py-1 font-mono text-zinc-500 w-64 border-b border-zinc-100">{k}</td>
-                          <td className="px-3 py-1 text-zinc-900 border-b border-zinc-100">{String(v)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p className="px-3 py-2 text-xs text-zinc-400">No post-survey fields with data</p>
-                )}
-              </details>
-
-              <details className="rounded border border-zinc-200">
-                <summary className="cursor-pointer px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50">
-                  Pre-survey raw fields ({preAllFields ? Object.keys(preAllFields).length : 0} fields with data)
-                </summary>
-                {preAllFields && Object.keys(preAllFields).length > 0 ? (
-                  <table className="w-full text-xs">
-                    <tbody>
-                      {Object.entries(preAllFields).map(([k, v]) => (
-                        <tr key={k} className="odd:bg-white even:bg-zinc-50">
-                          <td className="px-3 py-1 font-mono text-zinc-500 w-64 border-b border-zinc-100">{k}</td>
-                          <td className="px-3 py-1 text-zinc-900 border-b border-zinc-100">{String(v)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p className="px-3 py-2 text-xs text-zinc-400 italic">
-                    No pre-survey records found for this date. The pre-survey may have been submitted
-                    on a different date — check the raw data or expand the date range.
-                  </p>
-                )}
-              </details>
-            </div>
-          </div>
-        )}
       </section>
+
+      {/* ── Step 2: Select Audit ── */}
+      <section className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-opacity ${!isLoggedIn ? "opacity-40 pointer-events-none" : "border-gray-200"}`}>
+        <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-4">
+          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white ${isLoggedIn ? "bg-blue-600" : "bg-gray-300"}`}>2</span>
+          <h2 className="text-lg font-semibold text-gray-900">Select an Audit</h2>
+          {selectedAudit && (
+            <span className="ml-auto flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+              Audit selected
+            </span>
+          )}
+        </div>
+        <div className="px-6 py-8">
+          {!isLoggedIn ? (
+            <p className="text-gray-400 italic">Complete Step 1 first.</p>
+          ) : !hasAudits ? (
+            <p className="text-gray-500">Load your audits in Step 1 to continue.</p>
+          ) : (
+            <div className="flex flex-col gap-4 max-w-lg">
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5">
+                <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                <p className="text-sm text-emerald-800 font-medium">{audits.length} audit{audits.length !== 1 ? "s" : ""} loaded</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Choose an audit</label>
+                <select
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base text-gray-900 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  value={selectedAuditId}
+                  onChange={(event) => setSelectedAuditId(event.target.value)}
+                >
+                  <option value="">— Select an audit —</option>
+                  {audits.map((audit) => {
+                    const epochMs = Number(audit.surveyDate);
+                    const displayDate =
+                      Number.isFinite(epochMs) && epochMs > 1_000_000_000_000
+                        ? new Date(epochMs).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+                        : audit.surveyDate;
+                    return (
+                      <option key={audit.id} value={audit.id}>
+                        {audit.school} — {displayDate}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              {selectedAudit && (
+                <p className="text-sm text-emerald-700 font-medium">✓ Selected — scroll down to download your report.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Step 3: Download Reports ── */}
+      <section className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-opacity ${!selectedAudit ? "opacity-40 pointer-events-none" : "border-gray-200"}`}>
+        <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-4">
+          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white ${selectedAudit ? "bg-blue-600" : "bg-gray-300"}`}>3</span>
+          <h2 className="text-lg font-semibold text-gray-900">Download Report</h2>
+        </div>
+        <div className="px-6 py-8">
+          {!selectedAudit ? (
+            <p className="text-gray-400 italic">Complete Steps 1 &amp; 2 first.</p>
+          ) : (
+            <div className="flex flex-col gap-6">
+              <p className="text-gray-600">
+                Choose a report type below. Each is written by AI using the audit data and tailored for a different audience. Reports download as a <strong>.docx</strong> file.
+              </p>
+              {downloadError && (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{downloadError}</p>
+              )}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {(
+                  [
+                    {
+                      type: "domi-internal" as const,
+                      label: "DOMI Internal",
+                      badge: "Confidential",
+                      badgeColor: "bg-red-100 text-red-700",
+                      desc: "Detailed technical findings for city planners and DOMI staff. Includes all data, severity ratings, and infrastructure notes.",
+                      buttonColor: "bg-red-600 hover:bg-red-700 disabled:bg-red-300",
+                    },
+                    {
+                      type: "school-community" as const,
+                      label: "School & Community",
+                      badge: "For schools",
+                      badgeColor: "bg-emerald-100 text-emerald-700",
+                      desc: "Accessible summary for school administrators, PTAs, and community members focused on student safety.",
+                      buttonColor: "bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300",
+                    },
+                    {
+                      type: "public-update" as const,
+                      label: "Public Update",
+                      badge: "Public",
+                      badgeColor: "bg-blue-100 text-blue-700",
+                      desc: "Plain-language overview suitable for public newsletters, social media, or community meetings.",
+                      buttonColor: "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300",
+                    },
+                  ]
+                ).map(({ type, label, badge, badgeColor, desc, buttonColor }) => (
+                  <div key={type} className="flex flex-col rounded-xl border border-gray-200 p-5 gap-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-gray-900">{label}</p>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${badgeColor}`}>{badge}</span>
+                    </div>
+                    <p className="text-sm text-gray-500 flex-1">{desc}</p>
+                    <button
+                      type="button"
+                      className={`mt-auto w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed ${buttonColor}`}
+                      disabled={downloadingType !== null}
+                      onClick={() => handleDownload(type)}
+                    >
+                      {downloadingType === type ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                          Generating…
+                        </span>
+                      ) : "⬇ Download"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Footer padding ── */}
+      <div className="h-8" />
+      </div>
     </main>
   );
 }
