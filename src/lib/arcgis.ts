@@ -194,21 +194,20 @@ export async function getLayerFields(layerUrl: string, token: string) {
 }
 
 /**
- * ArcGIS Online hosted feature services require proper SQL date strings in
- * WHERE clauses; raw epoch-ms integers are rejected with "Invalid query
- * parameters". We convert the epoch value (returned by the layer query) to
- * a full-day TIMESTAMP range in UTC.
+ * ArcGIS Online hosted feature services require proper SQL DATE syntax in
+ * WHERE clauses; raw epoch-ms integers are rejected. We convert the stored
+ * epoch value to a full-day range: date >= DATE 'Y-M-D' AND date < DATE 'Y-M-D+1'.
  */
 export function buildDateClause(dateField: string, surveyDate: string): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+
   const epochMs = Number(surveyDate.trim());
   if (Number.isFinite(epochMs) && epochMs > 1_000_000_000_000) {
     const d = new Date(epochMs);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const y = d.getUTCFullYear();
-    const m = pad(d.getUTCMonth() + 1);
-    const day = pad(d.getUTCDate());
-    const dateStr = `${y}-${m}-${day}`;
-    const clause = `${dateField} >= DATE '${dateStr}' AND ${dateField} < DATE '${dateStr}' + INTERVAL '1' DAY`;
+    const next = new Date(epochMs + 86_400_000);
+    const dateStr = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+    const nextStr = `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`;
+    const clause = `${dateField} >= DATE '${dateStr}' AND ${dateField} < DATE '${nextStr}'`;
     console.log("[buildDateClause]", clause);
     return clause;
   }
@@ -216,6 +215,17 @@ export function buildDateClause(dateField: string, surveyDate: string): string {
   const clause = `${dateField} = DATE '${escaped}'`;
   console.log("[buildDateClause]", clause);
   return clause;
+}
+
+/** Human-readable date string from an epoch-ms or ISO string. */
+export function formatSurveyDate(surveyDate: string): string {
+  const epochMs = Number(surveyDate.trim());
+  if (Number.isFinite(epochMs) && epochMs > 1_000_000_000_000) {
+    return new Date(epochMs).toLocaleDateString("en-US", {
+      year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+    });
+  }
+  return surveyDate;
 }
 
 export function buildWhereClause(
@@ -227,6 +237,16 @@ export function buildWhereClause(
   const escapedSchool = school.replace(/'/g, "''");
   const dateClause = buildDateClause(dateField, surveyDate);
   return `${schoolField} = '${escapedSchool}' AND ${dateClause}`;
+}
+
+/**
+ * Returns a WHERE clause that filters only by school name — no date restriction.
+ * Used when the same audit may have records submitted across different dates
+ * (coordinator, planner, and traffic team often submit on different days).
+ */
+export function buildSchoolOnlyClause(school: string, schoolField: string): string {
+  const escaped = school.replace(/'/g, "''");
+  return `${schoolField} = '${escaped}'`;
 }
 
 function parseLayerUrl(layerUrl: string) {

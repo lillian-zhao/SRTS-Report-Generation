@@ -1,5 +1,21 @@
-import { buildDateClause, buildWhereClause, getSurveyConfig, queryLayerFeatures } from "@/lib/arcgis";
-import { buildReportDocx } from "@/lib/build-report-doc";
+import {
+  buildDateClause,
+  getSurveyConfig,
+  queryLayerFeatures,
+} from "@/lib/arcgis";
+import { buildAuditContext } from "@/lib/audit-context";
+import {
+  buildDomiReport,
+  buildPublicReport,
+  buildSchoolCommunityReport,
+} from "@/lib/build-report-doc";
+import {
+  generateDomiContent,
+  generatePublicContent,
+  generateSchoolCommunityContent,
+} from "@/lib/claude-reports";
+
+export type ReportType = "domi-internal" | "school-community" | "public-update";
 
 export async function POST(request: Request) {
   try {
@@ -7,25 +23,26 @@ export async function POST(request: Request) {
       token?: string;
       school?: string;
       surveyDate?: string;
+      reportType?: ReportType;
     };
 
-    if (!body.token || !body.school || !body.surveyDate) {
+    if (!body.token || !body.school || !body.surveyDate || !body.reportType) {
       return new Response(
-        JSON.stringify({ error: "token, school, and surveyDate are required" }),
+        JSON.stringify({ error: "token, school, surveyDate, and reportType are required" }),
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
 
     const config = getSurveyConfig();
 
-    const postWhere = buildWhereClause(
-      body.school,
-      body.surveyDate,
-      config.schoolField,
-      config.dateField,
-    );
-    const preWhere = buildDateClause(config.dateField, body.surveyDate);
+    // All roles share the same date_of_audit but only the coordinator fills in
+    // the school name — use date filter only so all role records are returned.
+    const postWhere = buildDateClause(config.dateField, body.surveyDate);
 
+    // Pre-survey: fetch everything, context builder merges best values.
+    const preWhere = "1=1";
+
+    console.log(`[/api/report/download] type=${body.reportType}`);
     console.log("[/api/report/download] postWhere:", postWhere);
     console.log("[/api/report/download] preWhere:", preWhere);
 
@@ -34,16 +51,28 @@ export async function POST(request: Request) {
       queryLayerFeatures(config.postSurveyLayerUrl, body.token, postWhere),
     ]);
 
-    const docBuffer = await buildReportDocx(
-      body.school,
-      body.surveyDate,
-      preFeatures,
-      postFeatures,
-    );
+    console.log(`[/api/report/download] pre=${preFeatures.length} post=${postFeatures.length}`);
 
+    const ctx = buildAuditContext(body.school, body.surveyDate, preFeatures, postFeatures);
+
+    let docBuffer: Buffer;
+    let filename: string;
     const safeSchool = body.school.replace(/[^a-z0-9]/gi, "_").slice(0, 40);
-    const safeDate = body.surveyDate.replace(/[^a-z0-9]/gi, "-").slice(0, 20);
-    const filename = `SRTS_Report_${safeSchool}_${safeDate}.docx`;
+    const safeDate = ctx.dateDisplay.replace(/[^a-z0-9]/gi, "-").slice(0, 20);
+
+    if (body.reportType === "domi-internal") {
+      const llm = await generateDomiContent(ctx);
+      docBuffer = await buildDomiReport(ctx, llm);
+      filename = `SRTS_DOMI_Internal_${safeSchool}_${safeDate}.docx`;
+    } else if (body.reportType === "school-community") {
+      const llm = await generateSchoolCommunityContent(ctx);
+      docBuffer = await buildSchoolCommunityReport(ctx, llm);
+      filename = `SRTS_School_Community_${safeSchool}_${safeDate}.docx`;
+    } else {
+      const llm = await generatePublicContent(ctx);
+      docBuffer = await buildPublicReport(ctx, llm);
+      filename = `SRTS_Public_Update_${safeSchool}_${safeDate}.docx`;
+    }
 
     return new Response(docBuffer, {
       headers: {
@@ -54,11 +83,10 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Report generation failed";
+    console.error("[/api/report/download] error:", message);
     return new Response(
-      JSON.stringify({
-        error:
-          error instanceof Error ? error.message : "Report generation failed",
-      }),
+      JSON.stringify({ error: message }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }

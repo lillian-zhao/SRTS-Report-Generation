@@ -13,7 +13,11 @@ type Audit = {
 type StreamEvent = {
   type: "status" | "complete" | "error";
   message: string;
-  data?: unknown;
+  data?: {
+    auditContext?: Record<string, string>;
+    postAllFields?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
 };
 
 type LayerField = {
@@ -40,9 +44,14 @@ export default function Home() {
   const [postFields, setPostFields] = useState<LayerField[]>([]);
 
   const [streamMessages, setStreamMessages] = useState<string[]>([]);
-  const [resultJson, setResultJson] = useState<string | null>(null);
+  const [, setResultJson] = useState<string | null>(null);
+  const [auditContext, setAuditContext] = useState<Record<string, string> | null>(null);
+  const [postAllFields, setPostAllFields] = useState<Record<string, unknown> | null>(null);
+  const [preAllFields, setPreAllFields] = useState<Record<string, unknown> | null>(null);
+  const [recordCounts, setRecordCounts] = useState<{ pre: number; post: number } | null>(null);
+  const [, setShowRawFields] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadingType, setDownloadingType] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const selectedAudit = useMemo(
@@ -84,6 +93,10 @@ export default function Home() {
     setLoginError(null);
     setStreamMessages([]);
     setResultJson(null);
+    setAuditContext(null);
+    setPostAllFields(null);
+    setPreAllFields(null);
+    setRecordCounts(null);
 
     try {
       // Prefer token from the browser so ArcGIS sees your network client like a
@@ -163,6 +176,10 @@ export default function Home() {
     setLoginError(null);
     setStreamMessages([]);
     setResultJson(null);
+    setAuditContext(null);
+    setPostAllFields(null);
+    setPreAllFields(null);
+    setRecordCounts(null);
     setToken(trimmed);
     setTokenExpires(null);
     try {
@@ -204,9 +221,9 @@ export default function Home() {
     }
   }
 
-  async function handleDownload() {
+  async function handleDownload(reportType: "domi-internal" | "school-community" | "public-update") {
     if (!token || !selectedAudit) return;
-    setIsDownloading(true);
+    setDownloadingType(reportType);
     setDownloadError(null);
     try {
       const response = await fetch("/api/report/download", {
@@ -216,6 +233,7 @@ export default function Home() {
           token,
           school: selectedAudit.school,
           surveyDate: selectedAudit.surveyDate,
+          reportType,
         }),
       });
       if (!response.ok) {
@@ -232,11 +250,9 @@ export default function Home() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setDownloadError(
-        error instanceof Error ? error.message : "Download failed",
-      );
+      setDownloadError(error instanceof Error ? error.message : "Download failed");
     } finally {
-      setIsDownloading(false);
+      setDownloadingType(null);
     }
   }
 
@@ -246,6 +262,11 @@ export default function Home() {
     }
     setStreamMessages([]);
     setResultJson(null);
+    setAuditContext(null);
+    setPostAllFields(null);
+    setPreAllFields(null);
+    setRecordCounts(null);
+    setShowRawFields(false);
     setIsGenerating(true);
 
     try {
@@ -281,6 +302,11 @@ export default function Home() {
           setStreamMessages((existing) => [...existing, parsed.message]);
           if (parsed.type === "complete" && parsed.data) {
             setResultJson(JSON.stringify(parsed.data, null, 2));
+            if (parsed.data.auditContext) setAuditContext(parsed.data.auditContext as Record<string, string>);
+            if (parsed.data.postAllFields) setPostAllFields(parsed.data.postAllFields as Record<string, unknown>);
+            if (parsed.data.preAllFields) setPreAllFields(parsed.data.preAllFields as Record<string, unknown>);
+            const counts = (parsed.data.counts as { preFeatures?: number; postFeatures?: number }) ?? {};
+            setRecordCounts({ pre: counts.preFeatures ?? 0, post: counts.postFeatures ?? 0 });
           }
           if (parsed.type === "error") {
             throw new Error(parsed.message);
@@ -480,20 +506,32 @@ export default function Home() {
           </select>
           <button
             type="button"
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-indigo-300"
+            className="rounded-md bg-zinc-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!selectedAudit || isGenerating}
             onClick={handleGenerate}
           >
-            {isGenerating ? "Running retrieval..." : "Preview raw data"}
+            {isGenerating ? "Loading…" : "Preview raw data"}
           </button>
-          <button
-            type="button"
-            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-emerald-300"
-            disabled={!selectedAudit || isDownloading}
-            onClick={handleDownload}
-          >
-            {isDownloading ? "Generating…" : "⬇ Download Report (.docx)"}
-          </button>
+          <div className="flex flex-col gap-2 pt-1">
+            <p className="text-xs font-semibold text-zinc-700">Generate AI report (.docx):</p>
+            {(
+              [
+                { type: "domi-internal", label: "DOMI Internal (confidential)", color: "bg-red-700 disabled:bg-red-300" },
+                { type: "school-community", label: "School & Community Report", color: "bg-emerald-600 disabled:bg-emerald-300" },
+                { type: "public-update", label: "Public Community Update", color: "bg-blue-600 disabled:bg-blue-300" },
+              ] as const
+            ).map(({ type, label, color }) => (
+              <button
+                key={type}
+                type="button"
+                className={`rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed ${color}`}
+                disabled={!selectedAudit || downloadingType !== null}
+                onClick={() => handleDownload(type)}
+              >
+                {downloadingType === type ? "Generating with Claude…" : `⬇ ${label}`}
+              </button>
+            ))}
+          </div>
           {downloadError && (
             <p className="text-sm text-red-600">{downloadError}</p>
           )}
@@ -512,14 +550,120 @@ export default function Home() {
           </ul>
         </div>
 
-        {resultJson && (
-          <div className="mt-6">
-            <h3 className="text-sm font-semibold text-zinc-900">
-              Retrieved payload preview
-            </h3>
-            <pre className="mt-2 max-h-96 overflow-auto rounded-md bg-zinc-900 p-4 text-xs text-zinc-100">
-              {resultJson}
-            </pre>
+        {auditContext && (
+          <div className="mt-6 space-y-4">
+            <h3 className="text-sm font-semibold text-zinc-900">Parsed audit data</h3>
+
+            {recordCounts && (
+              <div className={`flex gap-4 rounded-md border px-4 py-3 text-sm ${
+                recordCounts.pre === 0 ? "border-amber-300 bg-amber-50" : "border-green-300 bg-green-50"
+              }`}>
+                <span className={recordCounts.post > 0 ? "text-green-800" : "text-red-700"}>
+                  <strong>Post-survey records:</strong> {recordCounts.post}
+                  {recordCounts.post === 1 && " (only coordinator — planner/traffic not yet submitted)"}
+                  {recordCounts.post === 0 && " ⚠ none found"}
+                </span>
+                <span className={recordCounts.pre > 0 ? "text-green-800" : "text-amber-800"}>
+                  <strong>Pre-survey records:</strong> {recordCounts.pre}
+                  {recordCounts.pre === 0 && " ⚠ none found — pre-survey uses a different date"}
+                </span>
+              </div>
+            )}
+
+            <p className="text-xs text-zinc-500">
+              Rows with data are white; grey rows show fields that were empty or not matched.
+            </p>
+
+            {(
+              [
+                {
+                  heading: "Identity & Route",
+                  keys: ["school","address","dateDisplay","time","weather","coordinator","auditorEmail","role","schoolContact","schoolContactEmail","initiatedBy","previousAudit","routeDescription","preExistingConcerns"],
+                },
+                {
+                  heading: "Mode Split",
+                  keys: ["modeWalk","modeBike","modeTransit","modeBus","modeDropOff","studentCount","designatedRoutes","mainConcerns","landmarks","parentConcerns","parentConcernDetails"],
+                },
+                {
+                  heading: "Infrastructure Findings",
+                  keys: ["adaSignage","vegetationBlocking","poolingWater","immediateHazards","trippingHazards","sidewalkGaps","grantOpportunities","grantDetails","nearbyConstruction","constructionDetails","additionalInfrastructureNotes"],
+                },
+                {
+                  heading: "Traffic & Safety Findings",
+                  keys: ["conflictingSignage","wayfinding","wayfindingLocations","trafficConditions","crashHistory","crashDetails","crosswalks","vehicleSpeeds","crossingGuard","schoolZoneSigns","dropOffConflict","pedestrianGenerators","pedestrianGeneratorDetails","additionalTrafficNotes"],
+                },
+                {
+                  heading: "Summary",
+                  keys: ["topConcern1","topConcern2","topConcern3","overallSeverity","safetyRating","comfortableLetChild","comfortDetails","designatedRouteDetails","participantsPresent","participantsMissing","additionalNotes","additionalComments"],
+                },
+              ] as { heading: string; keys: string[] }[]
+            ).map(({ heading, keys }) => (
+              <div key={heading}>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">{heading}</h4>
+                <table className="w-full text-xs border border-zinc-200 rounded overflow-hidden">
+                  <tbody>
+                    {keys.map((k) => {
+                      const val = auditContext[k] ?? "";
+                      return (
+                        <tr key={k} className={val ? "bg-white" : "bg-zinc-50"}>
+                          <td className="px-3 py-1 font-medium text-zinc-600 w-56 border-b border-zinc-100 whitespace-nowrap">{k}</td>
+                          <td className={`px-3 py-1 border-b border-zinc-100 ${val ? "text-zinc-900" : "text-zinc-400 italic"}`}>
+                            {val || "— not mapped"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-zinc-600">Raw field dumps — use these to verify or fix field name mappings:</p>
+
+              <details className="rounded border border-zinc-200">
+                <summary className="cursor-pointer px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50">
+                  Post-survey raw fields ({postAllFields ? Object.keys(postAllFields).length : 0} fields with data)
+                </summary>
+                {postAllFields && Object.keys(postAllFields).length > 0 ? (
+                  <table className="w-full text-xs">
+                    <tbody>
+                      {Object.entries(postAllFields).map(([k, v]) => (
+                        <tr key={k} className="odd:bg-white even:bg-zinc-50">
+                          <td className="px-3 py-1 font-mono text-zinc-500 w-64 border-b border-zinc-100">{k}</td>
+                          <td className="px-3 py-1 text-zinc-900 border-b border-zinc-100">{String(v)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="px-3 py-2 text-xs text-zinc-400">No post-survey fields with data</p>
+                )}
+              </details>
+
+              <details className="rounded border border-zinc-200">
+                <summary className="cursor-pointer px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50">
+                  Pre-survey raw fields ({preAllFields ? Object.keys(preAllFields).length : 0} fields with data)
+                </summary>
+                {preAllFields && Object.keys(preAllFields).length > 0 ? (
+                  <table className="w-full text-xs">
+                    <tbody>
+                      {Object.entries(preAllFields).map(([k, v]) => (
+                        <tr key={k} className="odd:bg-white even:bg-zinc-50">
+                          <td className="px-3 py-1 font-mono text-zinc-500 w-64 border-b border-zinc-100">{k}</td>
+                          <td className="px-3 py-1 text-zinc-900 border-b border-zinc-100">{String(v)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="px-3 py-2 text-xs text-zinc-400 italic">
+                    No pre-survey records found for this date. The pre-survey may have been submitted
+                    on a different date — check the raw data or expand the date range.
+                  </p>
+                )}
+              </details>
+            </div>
           </div>
         )}
       </section>

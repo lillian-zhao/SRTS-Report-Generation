@@ -1,10 +1,10 @@
 import {
   buildDateClause,
-  buildWhereClause,
   getSurveyConfig,
   queryLayerAttachments,
   queryLayerFeatures,
 } from "@/lib/arcgis";
+import { buildAuditContext } from "@/lib/audit-context";
 
 type StreamStep = {
   type: "status" | "complete" | "error";
@@ -37,16 +37,17 @@ export async function POST(request: Request) {
 
         const config = getSurveyConfig();
 
-        // Post-survey has the school name field; filter by school + date.
-        const postWhere = buildWhereClause(
-          body.school,
-          body.surveyDate,
-          config.schoolField,
-          config.dateField,
-        );
+        // Each role (coordinator, school, guests, traffic) submits a separate
+        // record for the same audit. Only the coordinator fills in the school
+        // name field — the others leave it blank. So filtering by school name
+        // misses most records. Filter by date instead: all participants fill in
+        // date_of_audit with the same value.
+        const postWhere = buildDateClause(config.dateField, body.surveyDate);
 
-        // Pre-survey has no school field; filter by date only.
-        const preWhere = buildDateClause(config.dateField, body.surveyDate);
+        // Pre-survey: fetch all records — it may use a different date.
+        const preWhere = "1=1";
+
+        console.log("[stream] postWhere:", postWhere);
 
         sendChunk(controller, {
           type: "status",
@@ -95,6 +96,34 @@ export async function POST(request: Request) {
           postObjectIds,
         );
 
+        // Build parsed context (merging all post records across roles)
+        const auditContext = buildAuditContext(
+          body.school,
+          body.surveyDate,
+          preFeatures,
+          postFeatures,
+        );
+
+        // Flat map of every field that has a non-null value across all post records
+        const postFieldMap: Record<string, unknown> = {};
+        for (const feature of postFeatures) {
+          for (const [k, v] of Object.entries(feature.attributes)) {
+            if (v !== null && v !== undefined && String(v).trim() !== "") {
+              postFieldMap[k] = v;
+            }
+          }
+        }
+
+        // Same for pre-survey records
+        const preFieldMap: Record<string, unknown> = {};
+        for (const feature of preFeatures) {
+          for (const [k, v] of Object.entries(feature.attributes)) {
+            if (v !== null && v !== undefined && String(v).trim() !== "") {
+              preFieldMap[k] = v;
+            }
+          }
+        }
+
         sendChunk(controller, {
           type: "complete",
           message: "ArcGIS data retrieval complete.",
@@ -109,6 +138,9 @@ export async function POST(request: Request) {
               preAttachments: Object.values(preAttachments).flat().length,
               postAttachments: Object.values(postAttachments).flat().length,
             },
+            auditContext,
+            postAllFields: postFieldMap,
+            preAllFields: preFieldMap,
             preFeatures,
             postFeatures,
             preAttachments,
