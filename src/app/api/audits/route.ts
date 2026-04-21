@@ -30,6 +30,9 @@ export async function GET(request: Request) {
       "*",
     );
 
+    const rawCount = postSurveyRows.length;
+    const sampleAttributes = postSurveyRows[0]?.attributes ?? null;
+
     const uniqueAuditMap = new Map<string, Audit>();
     for (const row of postSurveyRows) {
       const school = String(row.attributes[config.schoolField] ?? "").trim();
@@ -51,7 +54,7 @@ export async function GET(request: Request) {
       return b.surveyDate.localeCompare(a.surveyDate);
     });
 
-    return NextResponse.json({ audits });
+    return NextResponse.json({ audits, rawCount, sampleAttributes });
   } catch (error) {
     const message =
       error instanceof Error

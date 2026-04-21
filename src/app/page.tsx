@@ -165,6 +165,8 @@ export default function Home() {
       );
       const payload = (await response.json()) as {
         audits?: Audit[];
+        rawCount?: number;
+        sampleAttributes?: Record<string, unknown> | null;
         error?: string;
       };
       if (!response.ok || !payload.audits) {
@@ -175,7 +177,15 @@ export default function Home() {
       if (payload.audits.length > 0) {
         setSelectedAuditId(payload.audits[0].id);
       } else {
-        setAuditsError("No audits found. The layer may be empty or the token may not have access.");
+        const raw = payload.rawCount ?? 0;
+        const sampleKeys = payload.sampleAttributes
+          ? Object.keys(payload.sampleAttributes).slice(0, 8).join(", ")
+          : "none";
+        setAuditsError(
+          raw === 0
+            ? `ArcGIS returned 0 records — token may not have access to the layer, or the layer URL is wrong.`
+            : `ArcGIS returned ${raw} records but none had a school + date match. First record fields: ${sampleKeys}`,
+        );
       }
     } catch (error) {
       setAuditsError(error instanceof Error ? error.message : "Unable to load audits");
