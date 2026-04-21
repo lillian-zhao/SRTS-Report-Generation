@@ -8,6 +8,7 @@
     "ARCGIS_PRE_SURVEY_LAYER_URL": "https://services1.arcgis.com/YZCmUqbcsUpOKfj7/arcgis/rest/services/survey123_a319154d30174363a7f1332a41a4168f_results/FeatureServer/0",
     "ARCGIS_POST_SURVEY_LAYER_URL": "https://services1.arcgis.com/YZCmUqbcsUpOKfj7/arcgis/rest/services/survey123_98dcc2e10b5d4b7296d0bb72d7722e4a_results/FeatureServer/0",
     "ARCGIS_SCHOOL_FIELD": "which_school_is_this_audit_for",
+    "ARCGIS_POST_SCHOOL_FIELD": "field_103",
     "ARCGIS_DATE_FIELD": "date_of_audit",
     "ARCGIS_OBJECTID_FIELD": "objectid"
   },

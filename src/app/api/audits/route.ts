@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
     const uniqueAuditMap = new Map<string, Audit>();
     for (const row of postSurveyRows) {
-      const school = String(row.attributes[config.schoolField] ?? "").trim();
+      const school = String(row.attributes[config.postSchoolField] ?? "").trim();
       const surveyDate = String(row.attributes[config.dateField] ?? "").trim();
       if (!school || !surveyDate) {
         continue;

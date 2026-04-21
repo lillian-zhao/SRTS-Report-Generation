@@ -317,9 +317,10 @@ export function getSurveyConfig() {
   return {
     preSurveyLayerUrl: requiredEnv("ARCGIS_PRE_SURVEY_LAYER_URL"),
     postSurveyLayerUrl: requiredEnv("ARCGIS_POST_SURVEY_LAYER_URL"),
-    schoolField: process.env.ARCGIS_SCHOOL_FIELD ?? "school_name",
-    dateField: process.env.ARCGIS_DATE_FIELD ?? "survey_date",
-    objectIdField: process.env.ARCGIS_OBJECTID_FIELD ?? "OBJECTID",
+    schoolField: process.env.ARCGIS_SCHOOL_FIELD ?? "which_school_is_this_audit_for",
+    postSchoolField: process.env.ARCGIS_POST_SCHOOL_FIELD ?? "field_103",
+    dateField: process.env.ARCGIS_DATE_FIELD ?? "date_of_audit",
+    objectIdField: process.env.ARCGIS_OBJECTID_FIELD ?? "objectid",
   };
 }
 

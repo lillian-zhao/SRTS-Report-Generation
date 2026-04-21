@@ -121,8 +121,8 @@ export function buildAuditContext(
   const all = [...post, ...pre];
 
   return {
-    school,
-    address: str(post, "field_19"),
+    school: school || str(post, "field_103") || str(pre, "which_school_is_this_audit_for"),
+    address: str(post, "school_address"),
     dateDisplay: str(post, "date_of_audit") || formatSurveyDate(surveyDate),
     time: str(post, "time_of_audit"),
     weather: str(post, "weather_conditions"),
