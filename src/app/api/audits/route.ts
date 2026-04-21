@@ -22,11 +22,12 @@ export async function GET(request: Request) {
     const config = getSurveyConfig();
 
     // The post-survey layer has the school name field; the pre-survey layer does not.
+    // Use outFields=* to avoid rejections from strict field-name validation on some layers.
     const postSurveyRows = await queryLayerFeatures(
       config.postSurveyLayerUrl,
       token,
       "1=1",
-      `${config.schoolField},${config.dateField}`,
+      "*",
     );
 
     const uniqueAuditMap = new Map<string, Audit>();

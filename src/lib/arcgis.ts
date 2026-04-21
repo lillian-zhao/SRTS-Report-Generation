@@ -147,20 +147,24 @@ export async function queryLayerFeatures(
   where: string,
   outFields = "*",
 ) {
-  const params = new URLSearchParams({
+  const body = new URLSearchParams({
     f: "json",
     where,
     outFields,
-    returnGeometry: "true",
+    returnGeometry: "false",
     token,
   });
 
-  const queryUrl = `${layerUrl}/query?${params.toString()}`;
-  console.log("[queryLayerFeatures] url:", queryUrl.replace(/token=[^&]+/, "token=REDACTED"));
+  const queryUrl = `${layerUrl}/query`;
+  console.log("[queryLayerFeatures] POST", queryUrl, "where:", where, "outFields:", outFields);
 
   const response = await fetch(queryUrl, {
-    method: "GET",
-    headers: arcgisRequestHeaders(),
+    method: "POST",
+    headers: {
+      ...arcgisRequestHeaders(),
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
     cache: "no-store",
   });
 
