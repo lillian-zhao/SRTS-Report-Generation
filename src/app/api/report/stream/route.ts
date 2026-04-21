@@ -4,6 +4,8 @@ import {
   queryLayerAttachments,
   queryLayerFeatures,
 } from "@/lib/arcgis";
+
+export const maxDuration = 30;
 import { buildAuditContext } from "@/lib/audit-context";
 
 type StreamStep = {

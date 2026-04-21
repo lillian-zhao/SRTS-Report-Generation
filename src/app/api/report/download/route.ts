@@ -3,6 +3,9 @@ import {
   getSurveyConfig,
   queryLayerFeatures,
 } from "@/lib/arcgis";
+
+// Claude + ArcGIS can take up to ~30s — raise Vercel's default 10s limit.
+export const maxDuration = 60;
 import { buildAuditContext } from "@/lib/audit-context";
 import {
   buildDomiReport,
