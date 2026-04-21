@@ -31,30 +31,36 @@ export async function GET(request: Request) {
     );
 
     const rawCount = postSurveyRows.length;
-    const sampleAttributes = postSurveyRows[0]?.attributes ?? null;
 
-    const uniqueAuditMap = new Map<string, Audit>();
+    // Group records by date — date is always populated, school name is only
+    // filled by the coordinator role so we take the first non-empty value found
+    // across all records sharing the same date.
+    const byDate = new Map<string, { school: string; surveyDate: string }>();
+
     for (const row of postSurveyRows) {
-      const school = String(row.attributes[config.postSchoolField] ?? "").trim();
       const surveyDate = String(row.attributes[config.dateField] ?? "").trim();
-      if (!school || !surveyDate) {
-        continue;
-      }
+      if (!surveyDate) continue;
 
-      const id = `${school}__${surveyDate}`;
-      if (!uniqueAuditMap.has(id)) {
-        uniqueAuditMap.set(id, { id, school, surveyDate });
+      const school =
+        String(row.attributes[config.postSchoolField] ?? "").trim() ||
+        String(row.attributes[config.schoolField] ?? "").trim();
+
+      if (!byDate.has(surveyDate)) {
+        byDate.set(surveyDate, { school, surveyDate });
+      } else if (!byDate.get(surveyDate)!.school && school) {
+        byDate.get(surveyDate)!.school = school;
       }
     }
 
-    const audits = [...uniqueAuditMap.values()].sort((a, b) => {
-      if (a.surveyDate === b.surveyDate) {
-        return a.school.localeCompare(b.school);
-      }
-      return b.surveyDate.localeCompare(a.surveyDate);
-    });
+    const audits: Audit[] = [...byDate.values()]
+      .map(({ school, surveyDate }) => ({
+        id: `${school || "Unknown"}__${surveyDate}`,
+        school: school || "Unknown School",
+        surveyDate,
+      }))
+      .sort((a, b) => b.surveyDate.localeCompare(a.surveyDate));
 
-    return NextResponse.json({ audits, rawCount, sampleAttributes });
+    return NextResponse.json({ audits, rawCount });
   } catch (error) {
     const message =
       error instanceof Error
