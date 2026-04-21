@@ -523,6 +523,173 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Preview Survey Data ── */}
+      {selectedAudit && (
+        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">🔍</span>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Preview Survey Data</h2>
+                <p className="text-sm text-gray-500">Verify the data that will be used to generate your report.</p>
+              </div>
+            </div>
+            {!auditContext && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg bg-gray-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+                disabled={isGenerating}
+                onClick={handleGenerate}
+              >
+                {isGenerating ? (
+                  <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Loading…</>
+                ) : "Load Preview"}
+              </button>
+            )}
+            {auditContext && (
+              <button
+                type="button"
+                className="text-sm text-gray-400 hover:text-gray-600 underline shrink-0"
+                onClick={handleGenerate}
+              >
+                Refresh
+              </button>
+            )}
+          </div>
+
+          <div className="px-6 py-6">
+            {!auditContext && !isGenerating && (
+              <p className="text-gray-500 text-sm">Click <strong>Load Preview</strong> to fetch and display the survey responses for this audit.</p>
+            )}
+            {isGenerating && (
+              <div className="flex items-center gap-3 text-gray-500">
+                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                <span className="text-sm">
+                  {streamMessages.length > 0 ? streamMessages[streamMessages.length - 1] : "Fetching survey data…"}
+                </span>
+              </div>
+            )}
+            {auditContext && (
+              <div className="flex flex-col gap-6">
+                {(
+                  [
+                    {
+                      heading: "Audit Overview",
+                      icon: "📅",
+                      fields: [
+                        { key: "school", label: "School" },
+                        { key: "address", label: "Address" },
+                        { key: "dateDisplay", label: "Date" },
+                        { key: "time", label: "Time" },
+                        { key: "weather", label: "Weather" },
+                        { key: "coordinator", label: "Lead Coordinator" },
+                        { key: "schoolContact", label: "School Contact" },
+                        { key: "initiatedBy", label: "Audit Initiated By" },
+                        { key: "previousAudit", label: "Previously Audited" },
+                        { key: "participantsPresent", label: "All Participants Present" },
+                        { key: "participantsMissing", label: "Missing Participants" },
+                        { key: "routeDescription", label: "Route Description" },
+                        { key: "preExistingConcerns", label: "Pre-existing Concerns" },
+                      ],
+                    },
+                    {
+                      heading: "Student Travel Modes",
+                      icon: "🚶",
+                      fields: [
+                        { key: "modeWalk", label: "Walk" },
+                        { key: "modeBike", label: "Bike" },
+                        { key: "modeTransit", label: "Public Transit" },
+                        { key: "modeBus", label: "School Bus" },
+                        { key: "modeDropOff", label: "Dropped Off" },
+                        { key: "studentCount", label: "Total Enrollment" },
+                        { key: "designatedRoutes", label: "Designated Walking Routes" },
+                        { key: "designatedRouteDetails", label: "Route Details" },
+                        { key: "mainConcerns", label: "Main Concerns Before Audit" },
+                        { key: "landmarks", label: "Notable Landmarks" },
+                        { key: "parentConcerns", label: "Parent/Student Concerns Reported" },
+                        { key: "parentConcernDetails", label: "Concern Details" },
+                      ],
+                    },
+                    {
+                      heading: "Infrastructure Findings",
+                      icon: "🏗️",
+                      fields: [
+                        { key: "adaSignage", label: "ADA-Compliant Signage" },
+                        { key: "vegetationBlocking", label: "Vegetation Blocking Sidewalks" },
+                        { key: "poolingWater", label: "Pooling Water at Curb Ramps" },
+                        { key: "immediateHazards", label: "Immediate Hazards" },
+                        { key: "trippingHazards", label: "Tripping Hazards (>1 inch)" },
+                        { key: "sidewalkGaps", label: "Critical Sidewalk Gaps" },
+                        { key: "grantOpportunities", label: "Grant Opportunities" },
+                        { key: "grantDetails", label: "Grant Details" },
+                        { key: "nearbyConstruction", label: "Nearby Construction" },
+                        { key: "constructionDetails", label: "Construction Details" },
+                        { key: "additionalInfrastructureNotes", label: "Additional Notes" },
+                      ],
+                    },
+                    {
+                      heading: "Traffic & Safety Findings",
+                      icon: "🚦",
+                      fields: [
+                        { key: "conflictingSignage", label: "Conflicting/Unclear Signage" },
+                        { key: "wayfinding", label: "Wayfinding Signage Present" },
+                        { key: "wayfindingLocations", label: "Suggested Wayfinding Locations" },
+                        { key: "trafficConditions", label: "Peak vs. Non-Peak Traffic Difference" },
+                        { key: "crashHistory", label: "Known Crash History" },
+                        { key: "crashDetails", label: "Crash Details" },
+                        { key: "crosswalks", label: "Crosswalks Visible & Maintained" },
+                        { key: "vehicleSpeeds", label: "Vehicle Speeds Appropriate" },
+                        { key: "crossingGuard", label: "Crossing Guard Present" },
+                        { key: "schoolZoneSigns", label: "School Zone Signs Visible" },
+                        { key: "dropOffConflict", label: "Drop-Off Zone Pedestrian Conflict" },
+                        { key: "pedestrianGenerators", label: "Pedestrian Generators Along Route" },
+                        { key: "pedestrianGeneratorDetails", label: "Generator Details" },
+                        { key: "additionalTrafficNotes", label: "Additional Notes" },
+                      ],
+                    },
+                    {
+                      heading: "Summary",
+                      icon: "📋",
+                      fields: [
+                        { key: "topConcern1", label: "Top Concern #1" },
+                        { key: "topConcern2", label: "Top Concern #2" },
+                        { key: "topConcern3", label: "Top Concern #3" },
+                        { key: "overallSeverity", label: "Overall Severity" },
+                        { key: "safetyRating", label: "Student Safety Rating" },
+                        { key: "comfortableLetChild", label: "Comfortable Letting Child Walk Alone" },
+                        { key: "comfortDetails", label: "Details" },
+                        { key: "additionalNotes", label: "Additional Notes" },
+                        { key: "additionalComments", label: "Additional Comments" },
+                      ],
+                    },
+                  ] as { heading: string; icon: string; fields: { key: string; label: string }[] }[]
+                ).map(({ heading, icon, fields }) => {
+                  const populated = fields.filter((f) => auditContext[f.key]?.trim());
+                  if (populated.length === 0) return null;
+                  return (
+                    <div key={heading}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-base">{icon}</span>
+                        <h3 className="font-semibold text-gray-800">{heading}</h3>
+                        <span className="text-xs text-gray-400">{populated.length} field{populated.length !== 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="rounded-xl border border-gray-200 overflow-hidden">
+                        {populated.map((f, i) => (
+                          <div key={f.key} className={`flex gap-4 px-4 py-3 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+                            <span className="w-52 shrink-0 text-sm font-medium text-gray-500">{f.label}</span>
+                            <span className="text-sm text-gray-900">{auditContext[f.key]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* ── Step 3: Download Reports ── */}
       <section className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-opacity ${!selectedAudit ? "opacity-40 pointer-events-none" : "border-gray-200"}`}>
         <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-4">
