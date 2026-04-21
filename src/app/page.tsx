@@ -431,25 +431,42 @@ export default function Home() {
         </div>
         */}
         {token && (
-          <div className="mt-3 flex items-center gap-4">
-            <p className="text-sm text-emerald-700">
-              Logged in. Token expires:{" "}
-              {tokenExpires ? new Date(tokenExpires).toLocaleString() : "unknown"}
-            </p>
+          <div className="mt-3 flex flex-col gap-3 sm:max-w-lg">
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-emerald-700">
+                Logged in. Token expires:{" "}
+                {tokenExpires ? new Date(tokenExpires).toLocaleString() : "unknown"}
+              </p>
+              <button
+                type="button"
+                className="text-xs text-zinc-500 underline hover:text-zinc-700"
+                onClick={() => {
+                  localStorage.removeItem("arcgis_token");
+                  localStorage.removeItem("arcgis_token_expires");
+                  setToken(null);
+                  setTokenExpires(null);
+                  setAudits([]);
+                  setSelectedAuditId("");
+                }}
+              >
+                Sign out
+              </button>
+            </div>
             <button
               type="button"
-              className="text-xs text-zinc-500 underline hover:text-zinc-700"
-              onClick={() => {
-                localStorage.removeItem("arcgis_token");
-                localStorage.removeItem("arcgis_token_expires");
-                setToken(null);
-                setTokenExpires(null);
-                setAudits([]);
-                setSelectedAuditId("");
-              }}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+              disabled={isLoadingAudits}
+              onClick={() =>
+                loadAudits(token).catch((error) =>
+                  setLoginError(error instanceof Error ? error.message : "Unable to load audits"),
+                )
+              }
             >
-              Sign out
+              {isLoadingAudits ? "Loading audits…" : "Load Audits"}
             </button>
+            {audits.length > 0 && (
+              <p className="text-xs text-zinc-500">{audits.length} audit{audits.length !== 1 ? "s" : ""} loaded.</p>
+            )}
           </div>
         )}
         {loginError && <p className="mt-3 text-sm text-red-600">{loginError}</p>}
