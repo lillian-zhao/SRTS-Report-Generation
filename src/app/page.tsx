@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 
 import { tryGenerateTokenInBrowser } from "@/lib/arcgis-browser-token";
 
@@ -54,6 +55,7 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [downloadingType, setDownloadingType] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [previewExpanded, setPreviewExpanded] = useState(true);
 
   const selectedAudit = useMemo(
     () => audits.find((audit) => audit.id === selectedAuditId),
@@ -354,9 +356,12 @@ export default function Home() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="mx-auto max-w-4xl flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">SRTS Report Builder</h1>
-            <p className="text-sm text-gray-500">Safe Routes to School · Pittsburgh</p>
+          <div className="flex items-center gap-4">
+            <Image src="/logo.png" alt="SRTS Pittsburgh logo" width={52} height={52} className="shrink-0" />
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">SRTS Report Builder</h1>
+              <p className="text-sm text-gray-500">Safe Routes to School · Pittsburgh</p>
+            </div>
           </div>
           {isLoggedIn && (
             <div className="flex items-center gap-3">
@@ -536,30 +541,45 @@ export default function Home() {
                 <p className="text-sm text-gray-500">Verify the data that will be used to generate your report.</p>
               </div>
             </div>
-            {!auditContext && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-lg bg-gray-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
-                disabled={isGenerating}
-                onClick={handleGenerate}
-              >
-                {isGenerating ? (
-                  <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Loading…</>
-                ) : "Load Preview"}
-              </button>
-            )}
-            {auditContext && (
-              <button
-                type="button"
-                className="text-sm text-gray-400 hover:text-gray-600 underline shrink-0"
-                onClick={handleGenerate}
-              >
-                Refresh
-              </button>
-            )}
+            <div className="flex items-center gap-3 shrink-0">
+              {!auditContext && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-lg bg-gray-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  disabled={isGenerating}
+                  onClick={handleGenerate}
+                >
+                  {isGenerating ? (
+                    <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Loading…</>
+                  ) : "Load Preview"}
+                </button>
+              )}
+              {auditContext && (
+                <button
+                  type="button"
+                  className="text-sm text-gray-400 hover:text-gray-600 underline"
+                  onClick={handleGenerate}
+                >
+                  Refresh
+                </button>
+              )}
+              {auditContext && (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+                  onClick={() => setPreviewExpanded((v) => !v)}
+                >
+                  {previewExpanded ? (
+                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7"/></svg> Collapse</>
+                  ) : (
+                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg> Expand</>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="px-6 py-6">
+          <div className={previewExpanded ? "px-6 py-6" : "hidden"}>
             {!auditContext && !isGenerating && (
               <p className="text-gray-500 text-sm">Click <strong>Load Preview</strong> to fetch and display the survey responses for this audit.</p>
             )}
