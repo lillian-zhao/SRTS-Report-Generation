@@ -38,6 +38,7 @@ export default function Home() {
   const [audits, setAudits] = useState<Audit[]>([]);
   const [selectedAuditId, setSelectedAuditId] = useState("");
   const [isLoadingAudits, setIsLoadingAudits] = useState(false);
+  const [auditsError, setAuditsError] = useState<string | null>(null);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [preFields, setPreFields] = useState<LayerField[]>([]);
@@ -157,6 +158,7 @@ export default function Home() {
 
   async function loadAudits(currentToken: string) {
     setIsLoadingAudits(true);
+    setAuditsError(null);
     try {
       const response = await fetch(
         `/api/audits?token=${encodeURIComponent(currentToken)}`,
@@ -172,7 +174,11 @@ export default function Home() {
       setAudits(payload.audits);
       if (payload.audits.length > 0) {
         setSelectedAuditId(payload.audits[0].id);
+      } else {
+        setAuditsError("No audits found. The layer may be empty or the token may not have access.");
       }
+    } catch (error) {
+      setAuditsError(error instanceof Error ? error.message : "Unable to load audits");
     } finally {
       setIsLoadingAudits(false);
     }
@@ -456,15 +462,14 @@ export default function Home() {
               type="button"
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
               disabled={isLoadingAudits}
-              onClick={() =>
-                loadAudits(token).catch((error) =>
-                  setLoginError(error instanceof Error ? error.message : "Unable to load audits"),
-                )
-              }
+              onClick={() => loadAudits(token)}
             >
               {isLoadingAudits ? "Loading audits…" : "Load Audits"}
             </button>
-            {audits.length > 0 && (
+            {auditsError && (
+              <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{auditsError}</p>
+            )}
+            {!auditsError && audits.length > 0 && (
               <p className="text-xs text-zinc-500">{audits.length} audit{audits.length !== 1 ? "s" : ""} loaded.</p>
             )}
           </div>
