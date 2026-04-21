@@ -67,23 +67,34 @@ export default function Home() {
 
     if (authError) {
       setLoginError(authError);
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
     }
 
     if (oauthToken) {
-      setToken(oauthToken);
       const expiresValue = oauthExpires ? Number(oauthExpires) : null;
-      setTokenExpires(
-        expiresValue && Number.isFinite(expiresValue) ? expiresValue : null,
-      );
+      const expires = expiresValue && Number.isFinite(expiresValue) ? expiresValue : null;
+      setToken(oauthToken);
+      setTokenExpires(expires);
+      localStorage.setItem("arcgis_token", oauthToken);
+      if (expires) localStorage.setItem("arcgis_token_expires", String(expires));
+      window.history.replaceState({}, "", window.location.pathname);
       loadAudits(oauthToken).catch((error) =>
-        setLoginError(
-          error instanceof Error ? error.message : "Unable to load audits",
-        ),
+        setLoginError(error instanceof Error ? error.message : "Unable to load audits"),
       );
+      return;
     }
 
-    if (oauthToken || oauthExpires || authError) {
-      window.history.replaceState({}, "", window.location.pathname);
+    // On page load, restore a saved token and auto-load audits
+    const savedToken = localStorage.getItem("arcgis_token");
+    const savedExpires = localStorage.getItem("arcgis_token_expires");
+    const expiresMs = savedExpires ? Number(savedExpires) : null;
+    if (savedToken && (!expiresMs || expiresMs > Date.now())) {
+      setToken(savedToken);
+      setTokenExpires(expiresMs);
+      loadAudits(savedToken).catch((error) =>
+        setLoginError(error instanceof Error ? error.message : "Unable to load audits"),
+      );
     }
   }, []);
 
@@ -349,6 +360,7 @@ export default function Home() {
             only if your ArcGIS account supports direct token login.
           </p>
         </div>
+        {/* Username/password login — disabled for production (OAuth only)
         <form onSubmit={handleLogin} className="mt-4 grid gap-3 sm:max-w-lg">
           <p className="text-xs text-zinc-600">
             Use the same <strong>User name</strong> shown under your ArcGIS
@@ -378,6 +390,9 @@ export default function Home() {
             {isLoggingIn ? "Signing in..." : "Login + Load Audits"}
           </button>
         </form>
+        */}
+
+        {/* Paste-token fallback — disabled for production (OAuth only)
         <div className="mt-6 rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-4 sm:max-w-lg">
           <p className="text-sm font-medium text-zinc-900">
             Or paste an ArcGIS token
@@ -414,11 +429,28 @@ export default function Home() {
             Use token + load audits
           </button>
         </div>
+        */}
         {token && (
-          <p className="mt-3 text-sm text-emerald-700">
-            Logged in. Token expires:{" "}
-            {tokenExpires ? new Date(tokenExpires).toLocaleString() : "unknown"}
-          </p>
+          <div className="mt-3 flex items-center gap-4">
+            <p className="text-sm text-emerald-700">
+              Logged in. Token expires:{" "}
+              {tokenExpires ? new Date(tokenExpires).toLocaleString() : "unknown"}
+            </p>
+            <button
+              type="button"
+              className="text-xs text-zinc-500 underline hover:text-zinc-700"
+              onClick={() => {
+                localStorage.removeItem("arcgis_token");
+                localStorage.removeItem("arcgis_token_expires");
+                setToken(null);
+                setTokenExpires(null);
+                setAudits([]);
+                setSelectedAuditId("");
+              }}
+            >
+              Sign out
+            </button>
+          </div>
         )}
         {loginError && <p className="mt-3 text-sm text-red-600">{loginError}</p>}
         <div className="mt-4">
