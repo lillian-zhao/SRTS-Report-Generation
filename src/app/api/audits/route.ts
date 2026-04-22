@@ -21,34 +21,62 @@ export async function GET(request: Request) {
 
     const config = getSurveyConfig();
 
-    // The post-survey layer has the school name field; the pre-survey layer does not.
-    // Use outFields=* to avoid rejections from strict field-name validation on some layers.
-    const postSurveyRows = await queryLayerFeatures(
-      config.postSurveyLayerUrl,
-      token,
-      "1=1",
-      "*",
-    );
+    // Fetch post-survey records (grouped by date) and pre-survey records
+    // (which reliably contain the school name) in parallel.
+    const [postSurveyRows, preSurveyRows] = await Promise.all([
+      queryLayerFeatures(config.postSurveyLayerUrl, token, "1=1", "*"),
+      queryLayerFeatures(config.preSurveyLayerUrl, token, "1=1", "*"),
+    ]);
 
     const rawCount = postSurveyRows.length;
 
-    // Group records by date — date is always populated, school name is only
-    // filled by the coordinator role so we take the first non-empty value found
-    // across all records sharing the same date.
+    // Build a date → school name lookup from the pre-survey.
+    // The pre-survey uses which_school_is_this_audit_for and always has
+    // school name filled in.  Normalise the date to a plain day string so
+    // epoch-millisecond timestamps from both layers can be compared.
+    function toDateKey(raw: string): string {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n > 1_000_000_000_000) {
+        return new Date(n).toISOString().slice(0, 10); // "YYYY-MM-DD"
+      }
+      return String(raw).slice(0, 10);
+    }
+
+    const schoolByDate = new Map<string, string>();
+    for (const row of preSurveyRows) {
+      const school = String(row.attributes[config.schoolField] ?? "").trim();
+      const rawDate = String(row.attributes[config.dateField] ?? "").trim();
+      if (school && rawDate) {
+        schoolByDate.set(toDateKey(rawDate), school);
+      }
+    }
+
+    // Group post-survey records by date, filling school name from:
+    // 1. field_103 (post-survey, newer records)
+    // 2. which_school_is_this_audit_for (post-survey, older records)
+    // 3. Pre-survey lookup by matching date
     const byDate = new Map<string, { school: string; surveyDate: string }>();
 
     for (const row of postSurveyRows) {
       const surveyDate = String(row.attributes[config.dateField] ?? "").trim();
       if (!surveyDate) continue;
 
-      const school =
+      const schoolFromPost =
         String(row.attributes[config.postSchoolField] ?? "").trim() ||
         String(row.attributes[config.schoolField] ?? "").trim();
 
       if (!byDate.has(surveyDate)) {
-        byDate.set(surveyDate, { school, surveyDate });
-      } else if (!byDate.get(surveyDate)!.school && school) {
-        byDate.get(surveyDate)!.school = school;
+        byDate.set(surveyDate, { school: schoolFromPost, surveyDate });
+      } else if (!byDate.get(surveyDate)!.school && schoolFromPost) {
+        byDate.get(surveyDate)!.school = schoolFromPost;
+      }
+    }
+
+    // Fill any still-missing school names from the pre-survey lookup
+    for (const [surveyDate, entry] of byDate) {
+      if (!entry.school) {
+        const preSchool = schoolByDate.get(toDateKey(surveyDate));
+        if (preSchool) entry.school = preSchool;
       }
     }
 
