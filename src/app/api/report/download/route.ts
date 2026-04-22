@@ -2,6 +2,7 @@ import {
   buildDateClause,
   getSurveyConfig,
   queryLayerFeatures,
+  queryRelatedPhotoAttachments,
 } from "@/lib/arcgis";
 
 // Claude + ArcGIS can take up to ~30s — raise Vercel's default 10s limit.
@@ -11,12 +12,40 @@ import {
   buildDomiReport,
   buildPublicReport,
   buildSchoolCommunityReport,
+  type ReportPhoto,
 } from "@/lib/build-report-doc";
 import {
   generateDomiContent,
   generatePublicContent,
   generateSchoolCommunityContent,
 } from "@/lib/claude-reports";
+
+async function fetchPhotoBinaries(
+  layerUrl: string,
+  token: string,
+  globalIds: string[],
+): Promise<ReportPhoto[]> {
+  if (!globalIds.length) return [];
+  try {
+    const photoMeta = await queryRelatedPhotoAttachments(layerUrl, token, globalIds);
+    const results: ReportPhoto[] = [];
+    for (const photo of photoMeta) {
+      try {
+        const resp = await fetch(photo.url, { cache: "no-store" });
+        if (!resp.ok) continue;
+        const buf = await resp.arrayBuffer();
+        results.push({ data: new Uint8Array(buf), name: photo.name, contentType: photo.contentType });
+      } catch {
+        console.warn("[fetchPhotoBinaries] Failed to fetch", photo.url);
+      }
+    }
+    console.log("[fetchPhotoBinaries] Fetched", results.length, "photos");
+    return results;
+  } catch (err) {
+    console.warn("[fetchPhotoBinaries] Photo retrieval skipped:", String(err));
+    return [];
+  }
+}
 
 export type ReportType = "domi-internal" | "school-community" | "public-update";
 
@@ -58,6 +87,12 @@ export async function POST(request: Request) {
 
     const ctx = buildAuditContext(body.school, body.surveyDate, preFeatures, postFeatures);
 
+    // Fetch post-survey photos (skip pre-survey — photos are typically taken on the walk)
+    const postGlobalIds = postFeatures
+      .map((f) => String(f.attributes["globalid"] ?? f.attributes["GlobalID"] ?? ""))
+      .filter(Boolean);
+    const photos = await fetchPhotoBinaries(config.postSurveyLayerUrl, body.token, postGlobalIds);
+
     let docBuffer: ArrayBuffer;
     let filename: string;
     const safeSchool = body.school.replace(/[^a-z0-9]/gi, "_").slice(0, 40);
@@ -65,15 +100,15 @@ export async function POST(request: Request) {
 
     if (body.reportType === "domi-internal") {
       const llm = await generateDomiContent(ctx);
-      docBuffer = await buildDomiReport(ctx, llm);
+      docBuffer = await buildDomiReport(ctx, llm, photos);
       filename = `SRTS_DOMI_Internal_${safeSchool}_${safeDate}.docx`;
     } else if (body.reportType === "school-community") {
       const llm = await generateSchoolCommunityContent(ctx);
-      docBuffer = await buildSchoolCommunityReport(ctx, llm);
+      docBuffer = await buildSchoolCommunityReport(ctx, llm, photos);
       filename = `SRTS_School_Community_${safeSchool}_${safeDate}.docx`;
     } else {
       const llm = await generatePublicContent(ctx);
-      docBuffer = await buildPublicReport(ctx, llm);
+      docBuffer = await buildPublicReport(ctx, llm, photos);
       filename = `SRTS_Public_Update_${safeSchool}_${safeDate}.docx`;
     }
 

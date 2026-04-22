@@ -1,7 +1,7 @@
 import {
   buildDateClause,
   getSurveyConfig,
-  queryLayerAttachments,
+  queryRelatedPhotoAttachments,
   queryLayerFeatures,
 } from "@/lib/arcgis";
 
@@ -71,31 +71,32 @@ export async function POST(request: Request) {
           postWhere,
         );
 
-        const preObjectIds = preFeatures
-          .map((feature) => Number(feature.attributes[config.objectIdField]))
-          .filter((value) => Number.isFinite(value));
-        const postObjectIds = postFeatures
-          .map((feature) => Number(feature.attributes[config.objectIdField]))
-          .filter((value) => Number.isFinite(value));
+        // Extract globalids for related-table photo lookup
+        const preGlobalIds = preFeatures
+          .map((f) => String(f.attributes["globalid"] ?? f.attributes["GlobalID"] ?? ""))
+          .filter(Boolean);
+        const postGlobalIds = postFeatures
+          .map((f) => String(f.attributes["globalid"] ?? f.attributes["GlobalID"] ?? ""))
+          .filter(Boolean);
 
         sendChunk(controller, {
           type: "status",
-          message: "Fetching pre-survey attachments...",
+          message: "Fetching pre-survey photos...",
         });
-        const preAttachments = await queryLayerAttachments(
+        const prePhotos = await queryRelatedPhotoAttachments(
           config.preSurveyLayerUrl,
           body.token,
-          preObjectIds,
+          preGlobalIds,
         );
 
         sendChunk(controller, {
           type: "status",
-          message: "Fetching post-survey attachments...",
+          message: "Fetching post-survey photos...",
         });
-        const postAttachments = await queryLayerAttachments(
+        const postPhotos = await queryRelatedPhotoAttachments(
           config.postSurveyLayerUrl,
           body.token,
-          postObjectIds,
+          postGlobalIds,
         );
 
         // Build parsed context (merging all post records across roles)
@@ -137,16 +138,16 @@ export async function POST(request: Request) {
             counts: {
               preFeatures: preFeatures.length,
               postFeatures: postFeatures.length,
-              preAttachments: Object.values(preAttachments).flat().length,
-              postAttachments: Object.values(postAttachments).flat().length,
+              prePhotos: prePhotos.length,
+              postPhotos: postPhotos.length,
             },
             auditContext,
             postAllFields: postFieldMap,
             preAllFields: preFieldMap,
             preFeatures,
             postFeatures,
-            preAttachments,
-            postAttachments,
+            prePhotos,
+            postPhotos,
           },
         });
       } catch (error) {

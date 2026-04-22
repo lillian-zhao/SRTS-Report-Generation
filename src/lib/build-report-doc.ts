@@ -5,6 +5,7 @@ import {
   Footer,
   Header,
   HeadingLevel,
+  ImageRun,
   LevelFormat,
   Packer,
   Paragraph,
@@ -22,6 +23,13 @@ import type {
   PublicContent,
   SchoolCommunityContent,
 } from "./claude-reports";
+
+export type ReportPhoto = {
+  data: Uint8Array;
+  name: string;
+  /** MIME type — e.g. "image/jpeg", "image/png" */
+  contentType: string;
+};
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 
@@ -143,6 +151,64 @@ function bullet(text: string, opts: { bold?: boolean; color?: string } = {}) {
 
 function spacer(pts = 160) {
   return new Paragraph({ spacing: { after: pts }, children: [new TextRun("")] });
+}
+
+function mimeToDocxType(contentType: string): "jpg" | "png" | "gif" | "bmp" {
+  if (contentType.includes("png")) return "png";
+  if (contentType.includes("gif")) return "gif";
+  if (contentType.includes("bmp")) return "bmp";
+  return "jpg";
+}
+
+/**
+ * Renders a two-column grid of embedded photos with captions.
+ * Returns an empty array if no photos are provided.
+ */
+function photoGallery(photos: ReportPhoto[], heading = "Site Photos"): Array<Paragraph | Table> {
+  if (!photos.length) return [];
+
+  const IMG_W = 270;
+  const IMG_H = 203; // ~4:3 aspect ratio
+  const COL_W = 4680; // half of 9360 DXA
+
+  const rows: TableRow[] = [];
+  for (let i = 0; i < photos.length; i += 2) {
+    const pair = [photos[i], photos[i + 1]];
+    rows.push(new TableRow({
+      children: pair.map((photo) => new TableCell({
+        borders,
+        width: { size: COL_W, type: WidthType.DXA },
+        margins: { top: 120, bottom: 120, left: 120, right: 120 },
+        children: photo
+          ? [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new ImageRun({
+                  data: photo.data,
+                  transformation: { width: IMG_W, height: IMG_H },
+                  type: mimeToDocxType(photo.contentType),
+                })],
+              }),
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 60 },
+                children: [new TextRun({ text: photo.name, font: "Arial", size: 16, color: C.medGray, italics: true })],
+              }),
+            ]
+          : [new Paragraph({ children: [new TextRun({ text: "" })] })],
+      })),
+    }));
+  }
+
+  return [
+    sectionHeading(heading),
+    new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [COL_W, COL_W],
+      rows,
+    }),
+    spacer(120),
+  ];
 }
 
 function mapPlaceholder(label = "[AUDIT ROUTE MAP — Geotrace from ArcGIS Survey123]", route = "") {
@@ -280,7 +346,7 @@ function severityColor(val: string): string {
 // 1. DOMI Internal Report
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildDomiReport(ctx: AuditContext, llm: DomiContent): Promise<ArrayBuffer> {
+export async function buildDomiReport(ctx: AuditContext, llm: DomiContent, photos: ReportPhoto[] = []): Promise<ArrayBuffer> {
   const children = [
 
     coverBlock(
@@ -410,6 +476,10 @@ export async function buildDomiReport(ctx: AuditContext, llm: DomiContent): Prom
     ...llm.longTermActions.map((a) => bullet(a)),
 
     spacer(),
+
+    ...photoGallery(photos, "Site Photos"),
+
+    spacer(),
     body("Report prepared by SRTS Walkability Audit System  |  For internal DOMI use only", { italic: true, color: C.medGray }),
   ];
 
@@ -428,7 +498,7 @@ export async function buildDomiReport(ctx: AuditContext, llm: DomiContent): Prom
 // 2. School & Community Partner Report
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolCommunityContent): Promise<ArrayBuffer> {
+export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolCommunityContent, photos: ReportPhoto[] = []): Promise<ArrayBuffer> {
   const children = [
 
     coverBlock(
@@ -500,6 +570,10 @@ export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolC
     ),
 
     spacer(),
+
+    ...photoGallery(photos, "Photos from the Audit"),
+
+    spacer(),
     body("Thank you to all participants — school staff, city representatives, and community members — who took part in making this audit possible.", { italic: true, color: C.medGray }),
   ];
 
@@ -518,7 +592,7 @@ export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolC
 // 3. Public Community Update
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildPublicReport(ctx: AuditContext, llm: PublicContent): Promise<ArrayBuffer> {
+export async function buildPublicReport(ctx: AuditContext, llm: PublicContent, photos: ReportPhoto[] = []): Promise<ArrayBuffer> {
   const children = [
 
     new Table({
@@ -608,6 +682,10 @@ export async function buildPublicReport(ctx: AuditContext, llm: PublicContent): 
       C.lightGreen,
       C.green,
     ),
+
+    spacer(),
+
+    ...photoGallery(photos, "Photos from the Audit"),
   ];
 
   return toBuffer(new Document({

@@ -63,6 +63,26 @@ type ArcGISLayerMetadataResponse = {
   };
 };
 
+type ArcGISServiceInfoResponse = {
+  layers?: Array<{ id: number; name: string }>;
+  tables?: Array<{ id: number; name: string }>;
+  error?: {
+    message?: string;
+    details?: string[];
+  };
+};
+
+export type PhotoAttachment = {
+  id: number;
+  name: string;
+  contentType: string;
+  size: number;
+  url: string;
+  parentGlobalId: string;
+  tableLayerId: number;
+  tableName: string;
+};
+
 function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -277,24 +297,27 @@ export async function queryLayerAttachments(
   }
 
   const { serviceUrl, layerId } = parseLayerUrl(layerUrl);
-  const params = new URLSearchParams({
+  const body = new URLSearchParams({
     f: "json",
     token,
     objectIds: objectIds.join(","),
-    definitionExpression: "1=1",
-    attachmentTypes: "",
-    keywords: "",
   });
 
-  const response = await fetch(
-    `${serviceUrl}/${layerId}/queryAttachments?${params.toString()}`,
-    {
-      method: "GET",
-      headers: arcgisRequestHeaders(),
-      cache: "no-store",
+  const queryUrl = `${serviceUrl}/${layerId}/queryAttachments`;
+  console.log("[queryLayerAttachments] POST", queryUrl, "objectIds:", objectIds.join(","));
+
+  const response = await fetch(queryUrl, {
+    method: "POST",
+    headers: {
+      ...arcgisRequestHeaders(),
+      "Content-Type": "application/x-www-form-urlencoded",
     },
-  );
+    body: body.toString(),
+    cache: "no-store",
+  });
+
   const payload = (await response.json()) as ArcGISAttachmentsResponse;
+  console.log("[queryLayerAttachments] response:", JSON.stringify(payload).slice(0, 300));
 
   if (!response.ok || payload.error) {
     throw new Error(arcgisErrorMessage(payload.error));
@@ -311,6 +334,152 @@ export async function queryLayerAttachments(
       })),
     ]),
   );
+}
+
+/**
+ * Fetch the FeatureServer metadata to discover all layers and related tables.
+ */
+export async function getServiceInfo(layerUrl: string, token: string) {
+  const { serviceUrl } = parseLayerUrl(layerUrl);
+  const params = new URLSearchParams({ f: "json", token });
+  console.log("[getServiceInfo] GET", serviceUrl);
+  const response = await fetch(`${serviceUrl}?${params.toString()}`, {
+    method: "GET",
+    headers: arcgisRequestHeaders(),
+    cache: "no-store",
+  });
+  const payload = (await response.json()) as ArcGISServiceInfoResponse;
+  if (!response.ok || payload.error) {
+    throw new Error(arcgisErrorMessage(payload.error));
+  }
+  console.log(
+    "[getServiceInfo] layers:", JSON.stringify(payload.layers),
+    "tables:", JSON.stringify(payload.tables),
+  );
+  return payload;
+}
+
+/**
+ * Survey123 stores photo-question images in related tables (one per image question),
+ * not as direct feature attachments on the main layer.
+ *
+ * This function:
+ * 1. Fetches the service metadata to discover all related tables.
+ * 2. For each table, queries for records where parentglobalid matches any of our
+ *    main feature globalids.
+ * 3. Collects attachments from those related-table records.
+ *
+ * Returns a flat array of PhotoAttachment objects, each with a ready-to-use URL.
+ */
+export async function queryRelatedPhotoAttachments(
+  layerUrl: string,
+  token: string,
+  mainFeatureGlobalIds: string[],
+): Promise<PhotoAttachment[]> {
+  if (!mainFeatureGlobalIds.length) return [];
+
+  const { serviceUrl } = parseLayerUrl(layerUrl);
+
+  // 1. Get all tables in the service
+  const serviceInfo = await getServiceInfo(layerUrl, token);
+  const allTables = [
+    ...(serviceInfo.layers ?? []),
+    ...(serviceInfo.tables ?? []),
+  ];
+
+  // Filter out layer 0 (main feature layer) — only check related tables/sublayers
+  const relatedTables = allTables.filter((t) => t.id !== 0);
+  if (!relatedTables.length) {
+    console.log("[queryRelatedPhotoAttachments] No related tables found.");
+    return [];
+  }
+
+  const globalIdList = mainFeatureGlobalIds
+    .map((gid) => `'${gid}'`)
+    .join(",");
+  const where = `parentglobalid IN (${globalIdList})`;
+
+  const allPhotos: PhotoAttachment[] = [];
+
+  for (const table of relatedTables) {
+    const tableUrl = `${serviceUrl}/${table.id}`;
+    console.log("[queryRelatedPhotoAttachments] Querying table", table.id, table.name);
+
+    // Query records in this table that have a matching parentglobalid
+    let tableRecords: ArcGISFeature[] = [];
+    try {
+      tableRecords = await queryLayerFeatures(tableUrl, token, where);
+    } catch (err) {
+      console.warn("[queryRelatedPhotoAttachments] Skipping table", table.id, String(err));
+      continue;
+    }
+
+    if (!tableRecords.length) continue;
+
+    // Get the objectIds of the matching table records
+    const tableObjectIds = tableRecords
+      .map((r) => Number(r.attributes["objectid"] ?? r.attributes["OBJECTID"]))
+      .filter((id) => Number.isFinite(id));
+
+    if (!tableObjectIds.length) continue;
+
+    // Query attachments on those table records
+    const attachBody = new URLSearchParams({
+      f: "json",
+      token,
+      objectIds: tableObjectIds.join(","),
+    });
+    const attachUrl = `${serviceUrl}/${table.id}/queryAttachments`;
+    console.log("[queryRelatedPhotoAttachments] queryAttachments on table", table.id, "objectIds:", tableObjectIds.join(","));
+
+    let attachPayload: ArcGISAttachmentsResponse;
+    try {
+      const attachResponse = await fetch(attachUrl, {
+        method: "POST",
+        headers: {
+          ...arcgisRequestHeaders(),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: attachBody.toString(),
+        cache: "no-store",
+      });
+      attachPayload = (await attachResponse.json()) as ArcGISAttachmentsResponse;
+      console.log("[queryRelatedPhotoAttachments] table", table.id, "attachmentGroups count:", attachPayload.attachmentGroups?.length ?? 0);
+    } catch (err) {
+      console.warn("[queryRelatedPhotoAttachments] Attachment query failed for table", table.id, String(err));
+      continue;
+    }
+
+    if (attachPayload.error || !attachPayload.attachmentGroups?.length) continue;
+
+    for (const group of attachPayload.attachmentGroups) {
+      // Find the parent globalid for this table record
+      const tableRecord = tableRecords.find(
+        (r) =>
+          Number(r.attributes["objectid"] ?? r.attributes["OBJECTID"]) === group.parentObjectId,
+      );
+      const parentGlobalId = String(tableRecord?.attributes["parentglobalid"] ?? tableRecord?.attributes["PARENTGLOBALID"] ?? "");
+
+      for (const att of group.attachmentInfos) {
+        if (!att.contentType.startsWith("image/")) continue;
+        allPhotos.push({
+          id: att.id,
+          name: att.name,
+          contentType: att.contentType,
+          size: att.size,
+          url:
+            att.url ??
+            `${serviceUrl}/${table.id}/${group.parentObjectId}/attachments/${att.id}?token=${encodeURIComponent(token)}`,
+          parentGlobalId,
+          tableLayerId: table.id,
+          tableName: table.name,
+        });
+      }
+    }
+  }
+
+  console.log("[queryRelatedPhotoAttachments] Total photos found:", allPhotos.length);
+  return allPhotos;
 }
 
 export function getSurveyConfig() {
