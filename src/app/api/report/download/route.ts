@@ -4,6 +4,7 @@ import {
   queryLayerFeatures,
   queryRelatedPhotoAttachments,
 } from "@/lib/arcgis";
+import { fetchSchoolAreaMap } from "@/lib/map-utils";
 
 // Claude + ArcGIS can take up to ~30s — raise Vercel's default 10s limit.
 export const maxDuration = 60;
@@ -91,7 +92,12 @@ export async function POST(request: Request) {
     const postGlobalIds = postFeatures
       .map((f) => String(f.attributes["globalid"] ?? f.attributes["GlobalID"] ?? ""))
       .filter(Boolean);
-    const photos = await fetchPhotoBinaries(config.postSurveyLayerUrl, body.token, postGlobalIds);
+    const [photos, mapImage] = await Promise.all([
+      fetchPhotoBinaries(config.postSurveyLayerUrl, body.token, postGlobalIds),
+      fetchSchoolAreaMap(ctx.address || body.school),
+    ]);
+
+    console.log(`[/api/report/download] photos=${photos.length} mapImage=${mapImage ? "yes" : "none"}`);
 
     let docBuffer: ArrayBuffer;
     let filename: string;
@@ -100,15 +106,15 @@ export async function POST(request: Request) {
 
     if (body.reportType === "domi-internal") {
       const llm = await generateDomiContent(ctx);
-      docBuffer = await buildDomiReport(ctx, llm, photos);
+      docBuffer = await buildDomiReport(ctx, llm, photos, mapImage);
       filename = `SRTS_DOMI_Internal_${safeSchool}_${safeDate}.docx`;
     } else if (body.reportType === "school-community") {
       const llm = await generateSchoolCommunityContent(ctx);
-      docBuffer = await buildSchoolCommunityReport(ctx, llm, photos);
+      docBuffer = await buildSchoolCommunityReport(ctx, llm, photos, mapImage);
       filename = `SRTS_School_Community_${safeSchool}_${safeDate}.docx`;
     } else {
       const llm = await generatePublicContent(ctx);
-      docBuffer = await buildPublicReport(ctx, llm, photos);
+      docBuffer = await buildPublicReport(ctx, llm, photos, mapImage);
       filename = `SRTS_Public_Update_${safeSchool}_${safeDate}.docx`;
     }
 

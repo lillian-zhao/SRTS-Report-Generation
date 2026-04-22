@@ -211,30 +211,54 @@ function photoGallery(photos: ReportPhoto[], heading = "Site Photos"): Array<Par
   ];
 }
 
-function mapPlaceholder(label = "[AUDIT ROUTE MAP — Geotrace from ArcGIS Survey123]", route = "") {
-  return new Table({
-    width: { size: 9360, type: WidthType.DXA },
-    columnWidths: [9360],
-    rows: [new TableRow({ children: [
-      new TableCell({
-        borders,
-        width: { size: 9360, type: WidthType.DXA },
-        shading: { fill: "E8F0F8", type: ShadingType.CLEAR },
-        margins: { top: 600, bottom: 600, left: 200, right: 200 },
-        children: [
-          new Paragraph({ alignment: AlignmentType.CENTER, children: [
-            new TextRun({ text: "🗺", font: "Arial", size: 48 }),
-          ]}),
-          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120 }, children: [
-            new TextRun({ text: label, font: "Arial", size: 18, color: C.medGray, italics: true }),
-          ]}),
-          ...(route ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60 }, children: [
-            new TextRun({ text: route, font: "Arial", size: 18, color: C.medGray }),
-          ]})] : []),
-        ],
-      }),
-    ]})],
+function mapBlock(mapImage: Uint8Array | null, routeDescription: string): Array<Paragraph | Table> {
+  const caption = new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 80 },
+    children: [new TextRun({
+      text: mapImage
+        ? "School neighborhood map — GPS route not yet enabled in survey form"
+        : "[Map unavailable — GPS route not enabled in survey form]",
+      font: "Arial", size: 16, color: C.medGray, italics: true,
+    })],
   });
+
+  if (mapImage) {
+    return [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new ImageRun({ data: mapImage, transformation: { width: 560, height: 380 }, type: "png" })],
+      }),
+      caption,
+    ];
+  }
+
+  // Fallback text placeholder
+  return [
+    new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [9360],
+      rows: [new TableRow({ children: [
+        new TableCell({
+          borders,
+          width: { size: 9360, type: WidthType.DXA },
+          shading: { fill: "E8F0F8", type: ShadingType.CLEAR },
+          margins: { top: 600, bottom: 600, left: 200, right: 200 },
+          children: [
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [
+              new TextRun({ text: "🗺", font: "Arial", size: 48 }),
+            ]}),
+            new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120 }, children: [
+              new TextRun({ text: "[AUDIT ROUTE MAP — Geotrace from ArcGIS Survey123]", font: "Arial", size: 18, color: C.medGray, italics: true }),
+            ]}),
+            ...(routeDescription ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60 }, children: [
+              new TextRun({ text: routeDescription, font: "Arial", size: 18, color: C.medGray }),
+            ]})] : []),
+          ],
+        }),
+      ]})],
+    }),
+  ];
 }
 
 function makeHeader(title: string, subtitle: string) {
@@ -346,7 +370,7 @@ function severityColor(val: string): string {
 // 1. DOMI Internal Report
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildDomiReport(ctx: AuditContext, llm: DomiContent, photos: ReportPhoto[] = []): Promise<ArrayBuffer> {
+export async function buildDomiReport(ctx: AuditContext, llm: DomiContent, photos: ReportPhoto[] = [], mapImage: Uint8Array | null = null): Promise<ArrayBuffer> {
   const children = [
 
     coverBlock(
@@ -382,7 +406,7 @@ export async function buildDomiReport(ctx: AuditContext, llm: DomiContent, photo
     sectionHeading("Audit Route"),
     body(ctx.routeDescription || "Route details not recorded."),
     spacer(100),
-    mapPlaceholder("[AUDIT ROUTE MAP — Geotrace from ArcGIS Survey123]", ctx.routeDescription),
+    ...mapBlock(mapImage, ctx.routeDescription || ""),
 
     spacer(),
 
@@ -498,7 +522,7 @@ export async function buildDomiReport(ctx: AuditContext, llm: DomiContent, photo
 // 2. School & Community Partner Report
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolCommunityContent, photos: ReportPhoto[] = []): Promise<ArrayBuffer> {
+export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolCommunityContent, photos: ReportPhoto[] = [], mapImage: Uint8Array | null = null): Promise<ArrayBuffer> {
   const children = [
 
     coverBlock(
@@ -519,7 +543,7 @@ export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolC
     sectionHeading("Route Walked"),
     body(ctx.routeDescription || "Route details not recorded."),
     spacer(100),
-    mapPlaceholder(`[AUDIT ROUTE MAP — ${ctx.school}, ${ctx.dateDisplay}]`, ctx.routeDescription),
+    ...mapBlock(mapImage, ctx.routeDescription || ""),
 
     spacer(),
 
@@ -592,7 +616,7 @@ export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolC
 // 3. Public Community Update
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildPublicReport(ctx: AuditContext, llm: PublicContent, photos: ReportPhoto[] = []): Promise<ArrayBuffer> {
+export async function buildPublicReport(ctx: AuditContext, llm: PublicContent, photos: ReportPhoto[] = [], mapImage: Uint8Array | null = null): Promise<ArrayBuffer> {
   const children = [
 
     new Table({
@@ -658,6 +682,13 @@ export async function buildPublicReport(ctx: AuditContext, llm: PublicContent, p
         }),
       ]})],
     }),
+
+    spacer(),
+
+    sectionHeading("Route Walked"),
+    body(ctx.routeDescription || "Route details not recorded."),
+    spacer(100),
+    ...mapBlock(mapImage, ctx.routeDescription || ""),
 
     spacer(),
 

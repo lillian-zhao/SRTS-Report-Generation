@@ -69,6 +69,8 @@ export async function POST(request: Request) {
           config.postSurveyLayerUrl,
           body.token,
           postWhere,
+          "*",
+          true, // return geometry to check for route polyline
         );
 
         // Extract globalids for related-table photo lookup

@@ -166,12 +166,13 @@ export async function queryLayerFeatures(
   token: string,
   where: string,
   outFields = "*",
+  returnGeometry = false,
 ) {
   const body = new URLSearchParams({
     f: "json",
     where,
     outFields,
-    returnGeometry: "false",
+    returnGeometry: String(returnGeometry),
     token,
   });
 
