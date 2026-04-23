@@ -214,34 +214,17 @@ function photoGallery(photos: ReportPhoto[], heading = "Site Photos"): Array<Par
 
 function mapBlock(mapResult: AuditMapResult | null, routeDescription: string): Array<Paragraph | Table> {
   if (mapResult) {
-    const isRoute = mapResult.type === "svg";
-    const captionText = isRoute
-      ? "Audit route map — GPS trace from Survey123"
-      : "School neighborhood map — GPS route not yet captured for this audit";
+    // mapResult.type is always "png" — SVG approach was dropped for Word compatibility.
+    // "svg" branch kept for type-safety but shouldn't be reached in practice.
+    const captionText = mapResult.type === "png" && routeDescription
+      ? "Audit route map — area shown corresponds to GPS trace from Survey123"
+      : "School neighborhood map";
 
-    // Minimal 1×1 white PNG — used as SVG fallback when basemap wasn't fetched
-    const FALLBACK_PNG_1X1 = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQ" +
-      "AABjkB6QAAAABJRU5ErkJggg==",
-      "base64",
-    );
-
-    const imageRun = mapResult.type === "svg"
-      ? new ImageRun({
-          data: mapResult.image,
-          type: "svg",
-          transformation: { width: 560, height: 380 },
-          // docx SvgMediaOptions.fallback = RegularImageOptions (requires type + data)
-          fallback: {
-            type: "png",
-            data: mapResult.fallbackPng ?? FALLBACK_PNG_1X1,
-          },
-        })
-      : new ImageRun({
-          data: mapResult.image,
-          type: "png",
-          transformation: { width: 560, height: 380 },
-        });
+    const imageRun = new ImageRun({
+      data: mapResult.image,
+      type: "png",
+      transformation: { width: 560, height: 380 },
+    });
 
     return [
       new Paragraph({ alignment: AlignmentType.CENTER, children: [imageRun] }),

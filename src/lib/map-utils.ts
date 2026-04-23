@@ -56,14 +56,12 @@ function routeBbox(paths: RoutePaths, paddingFactor = 0.18) {
   };
 }
 
-// ── Strategy 1: Route map — basemap + SVG route overlay ──────────────────────
+// ── Strategy 1: Route map — basemap PNG scoped to route bounding box ─────────
 
 /**
- * Fetches the ArcGIS World Street Map basemap for the route's bounding box,
- * then composites the GPS polyline on top as an SVG vector overlay.
- *
- * Returns an SVG Uint8Array (detected by callers via the leading "<" byte).
- * No external API keys or binary dependencies required.
+ * Fetches the ArcGIS World Street Map basemap PNG scoped to the GPS route's
+ * bounding box. Returns it as a plain PNG so Word embeds it natively without
+ * SVG rendering quirks.
  */
 export async function fetchRouteMap(
   paths: RoutePaths,
@@ -72,7 +70,6 @@ export async function fetchRouteMap(
 ): Promise<AuditMapResult | null> {
   const bbox = routeBbox(paths);
 
-  // 1. Fetch the basemap PNG — used both as SVG background and as Word fallback
   const mapParams = new URLSearchParams({
     bbox: `${bbox.xmin},${bbox.ymin},${bbox.xmax},${bbox.ymax}`,
     bboxSR: "4326",
@@ -84,56 +81,22 @@ export async function fetchRouteMap(
     f: "image",
   });
 
-  let basemapPng: Uint8Array | null = null;
-  let basemapDataUri = "";
   try {
     const resp = await fetch(
       `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?${mapParams.toString()}`,
       { cache: "no-store" },
     );
-    if (resp.ok) {
-      const buf = await resp.arrayBuffer();
-      basemapPng = new Uint8Array(buf);
-      basemapDataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
-      console.log("[fetchRouteMap] Basemap fetched, size:", buf.byteLength);
-    } else {
+    if (!resp.ok) {
       console.warn("[fetchRouteMap] Basemap fetch failed:", resp.status);
+      return null;
     }
+    const buf = await resp.arrayBuffer();
+    console.log("[fetchRouteMap] Basemap PNG fetched, size:", buf.byteLength);
+    return { image: new Uint8Array(buf), type: "png" };
   } catch (err) {
     console.warn("[fetchRouteMap] Basemap error:", String(err));
+    return null;
   }
-
-  // 2. Project route coordinates → pixel space (equirectangular, fine for city scale)
-  const { xmin, ymin, xmax, ymax } = bbox;
-  const toPixel = ([lon, lat]: number[]) => {
-    const x = ((lon - xmin) / (xmax - xmin)) * widthPx;
-    const y = (1 - (lat - ymin) / (ymax - ymin)) * heightPx;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  };
-  const pointsStr = paths.flat().map(toPixel).join(" ");
-
-  // 3. Build SVG: basemap raster + route polyline (DOMI blue, white halo)
-  const svgLines = [
-    `<?xml version="1.0" encoding="UTF-8"?>`,
-    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
-    `  width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">`,
-    basemapDataUri
-      ? `  <image href="${basemapDataUri}" x="0" y="0" width="${widthPx}" height="${heightPx}"/>`
-      : `  <rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="#D5E8F0"/>`,
-    `  <polyline points="${pointsStr}" fill="none" stroke="#FFFFFF" stroke-width="7"`,
-    `    stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`,
-    `  <polyline points="${pointsStr}" fill="none" stroke="#1F4E79" stroke-width="4.5"`,
-    `    stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>`,
-    `</svg>`,
-  ].join("\n");
-
-  console.log("[fetchRouteMap] SVG route map built successfully");
-  return {
-    image: new TextEncoder().encode(svgLines),
-    type: "svg",
-    // basemapPng serves as the Word fallback for older clients that can't render SVG
-    fallbackPng: basemapPng ?? undefined,
-  };
 }
 
 // ── Strategy 2: Neighborhood map via Nominatim + ArcGIS tile export ───────────

@@ -105,6 +105,21 @@ function str(sources: Attrs[], field: string): string {
   return "";
 }
 
+/**
+ * Returns the attributes of the SRTS Coordinator's post-survey record.
+ * Falls back to the first post record if no coordinator role is found.
+ * The coordinator record is prioritised for identity fields (name, email, time)
+ * because they are the lead auditor who organised the walkthrough.
+ */
+function findCoordinator(postFeatures: ArcGISFeature[]): Attrs {
+  const COORD_ROLES = ["srts coordinator", "srts staff", "domi staff", "coordinator"];
+  const found = postFeatures.find((f) => {
+    const role = String(f.attributes["what_is_your_role_today"] ?? "").toLowerCase().trim();
+    return COORD_ROLES.some((r) => role.includes(r));
+  });
+  return (found ?? postFeatures[0])?.attributes as Attrs ?? {};
+}
+
 export function buildAuditContext(
   school: string,
   surveyDate: string,
@@ -120,15 +135,19 @@ export function buildAuditContext(
   // pre-survey fields are checked after post in case the same field appears in both
   const all = [...post, ...pre];
 
+  // Put the coordinator record first so identity fields resolve to the right person
+  const coord = findCoordinator(postFeatures);
+  const coordFirst: Attrs[] = [coord, ...post];
+
   return {
     school: school || str(post, "field_103") || str(pre, "which_school_is_this_audit_for"),
     address: str(post, "school_address"),
     dateDisplay: str(post, "date_of_audit") || formatSurveyDate(surveyDate),
-    time: str(post, "time_of_audit"),
-    weather: str(post, "weather_conditions"),
-    coordinator: str(all, "what_is_your_full_name"),
-    auditorEmail: str(post, "whats_your_email_address"),
-    role: str(post, "what_is_your_role_today"),
+    time: str(coordFirst, "time_of_audit"),
+    weather: str(coordFirst, "weather_conditions"),
+    coordinator: str(coordFirst, "what_is_your_full_name"),
+    auditorEmail: str(coordFirst, "whats_your_email_address"),
+    role: str(coordFirst, "what_is_your_role_today"),
     schoolContact: str(post, "school_contact_name"),
     schoolContactEmail: str(post, "school_contact_emailphone"),
     initiatedBy: str(post, "was_this_audit_initiated_by"),

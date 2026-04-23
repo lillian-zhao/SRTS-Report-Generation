@@ -46,8 +46,9 @@ export async function POST(request: Request) {
         // date_of_audit with the same value.
         const postWhere = buildDateClause(config.dateField, body.surveyDate);
 
-        // Pre-survey: fetch all records — it may use a different date.
-        const preWhere = "1=1";
+        // Pre-survey: filter by school name so we don't mix in other schools' data.
+        const escapedSchool = body.school.replace(/'/g, "''");
+        const preWhere = `which_school_is_this_audit_for = '${escapedSchool}'`;
 
         console.log("[stream] postWhere:", postWhere);
 

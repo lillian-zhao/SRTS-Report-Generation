@@ -72,8 +72,9 @@ export async function POST(request: Request) {
     // the school name — use date filter only so all role records are returned.
     const postWhere = buildDateClause(config.dateField, body.surveyDate);
 
-    // Pre-survey: fetch everything, context builder merges best values.
-    const preWhere = "1=1";
+    // Pre-survey: filter by school name so we don't mix in other schools' data.
+    const escapedSchool = body.school.replace(/'/g, "''");
+    const preWhere = `which_school_is_this_audit_for = '${escapedSchool}'`;
 
     console.log(`[/api/report/download] type=${body.reportType}`);
     console.log("[/api/report/download] postWhere:", postWhere);
