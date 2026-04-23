@@ -4,7 +4,7 @@ import {
   queryLayerFeatures,
   queryRelatedPhotoAttachments,
 } from "@/lib/arcgis";
-import { fetchSchoolAreaMap } from "@/lib/map-utils";
+import { fetchAuditMap, extractRouteGeometry } from "@/lib/map-utils";
 
 // Claude + ArcGIS can take up to ~30s — raise Vercel's default 10s limit.
 export const maxDuration = 60;
@@ -81,20 +81,24 @@ export async function POST(request: Request) {
 
     const [preFeatures, postFeatures] = await Promise.all([
       queryLayerFeatures(config.preSurveyLayerUrl, body.token, preWhere),
-      queryLayerFeatures(config.postSurveyLayerUrl, body.token, postWhere),
+      queryLayerFeatures(config.postSurveyLayerUrl, body.token, postWhere, "*", true),
     ]);
 
     console.log(`[/api/report/download] pre=${preFeatures.length} post=${postFeatures.length}`);
 
     const ctx = buildAuditContext(body.school, body.surveyDate, preFeatures, postFeatures);
 
-    // Fetch post-survey photos (skip pre-survey — photos are typically taken on the walk)
+    // Extract route geometry from whichever post-survey feature has it
+    const routePaths = extractRouteGeometry(postFeatures);
+    console.log(`[/api/report/download] routePaths=${routePaths ? routePaths.flat().length + " vertices" : "none"}`);
+
+    // Fetch photos and map image in parallel
     const postGlobalIds = postFeatures
       .map((f) => String(f.attributes["globalid"] ?? f.attributes["GlobalID"] ?? ""))
       .filter(Boolean);
     const [photos, mapImage] = await Promise.all([
       fetchPhotoBinaries(config.postSurveyLayerUrl, body.token, postGlobalIds),
-      fetchSchoolAreaMap(ctx.address || body.school),
+      fetchAuditMap(routePaths, ctx.address || body.school),
     ]);
 
     console.log(`[/api/report/download] photos=${photos.length} mapImage=${mapImage ? "yes" : "none"}`);
