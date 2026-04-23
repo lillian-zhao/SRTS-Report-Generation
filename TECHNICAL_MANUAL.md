@@ -156,7 +156,7 @@ Create a `.env.local` file for local development. For production, set these in t
 - **ArcGIS Client ID:** `I0vhxBaDbmuJZAET`
 - **OAuth Redirect URI:** `https://srts-report-generation.vercel.app/api/arcgis/oauth/callback`
 
-> ⚠️ The `ANTHROPIC_API_KEY` is **not** stored in `vercel.json` (it is a secret). It must be added manually in the Vercel dashboard under Environment Variables and is not committed to the repository.
+> ⚠️ All variables except `ANTHROPIC_API_KEY` are defined in `vercel.json` and are automatically available to the Vercel deployment — no manual setup needed for those. `ANTHROPIC_API_KEY` is the **only** variable that must be added manually in the Vercel dashboard under **Settings → Environment Variables**, because it is a secret that must never be committed to the repository.
 
 ---
 
@@ -197,10 +197,9 @@ npm run dev
 
 1. Push code to the GitHub repository
 2. Connect the GitHub repository to a Vercel project
-3. In Vercel **Settings → Environment Variables**, add all variables from Section 5 — including `ANTHROPIC_API_KEY` as a secret
-4. Set `ARCGIS_REFERER` and `ARCGIS_OAUTH_REDIRECT_URI` to the production Vercel URL
-5. In the [ArcGIS Developer portal](https://developers.arcgis.com), open the OAuth app and add the production callback URI (`https://srts-report-generation.vercel.app/api/arcgis/oauth/callback`) as an allowed redirect URI
-6. Deploy
+3. In Vercel **Settings → Environment Variables**, add **only** `ANTHROPIC_API_KEY` as a secret — all other variables are already defined in `vercel.json` in the repository and are picked up automatically at deploy time
+4. In the [ArcGIS Developer portal](https://developers.arcgis.com), open the OAuth app and add the production callback URI (`https://srts-report-generation.vercel.app/api/arcgis/oauth/callback`) as an allowed redirect URI
+5. Deploy
 
 Vercel automatically redeploys when changes are pushed to the `main` branch.
 
