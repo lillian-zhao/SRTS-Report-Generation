@@ -23,6 +23,7 @@ import type {
   PublicContent,
   SchoolCommunityContent,
 } from "./claude-reports";
+import type { AuditMapResult } from "./map-utils";
 
 export type ReportPhoto = {
   data: Uint8Array;
@@ -211,28 +212,39 @@ function photoGallery(photos: ReportPhoto[], heading = "Site Photos"): Array<Par
   ];
 }
 
-/** Detect image type from magic bytes so we can set the correct ImageRun type. */
-function detectMapImageType(data: Uint8Array): "png" | "svg" | "jpg" {
-  // SVG starts with '<' (0x3C) from "<?xml" or "<svg"
-  if (data[0] === 0x3c) return "svg";
-  // PNG magic: 0x89 0x50 0x4E 0x47
-  if (data[0] === 0x89 && data[1] === 0x50) return "png";
-  return "jpg";
-}
-
-function mapBlock(mapImage: Uint8Array | null, routeDescription: string): Array<Paragraph | Table> {
-  if (mapImage) {
-    const imgType = detectMapImageType(mapImage);
-    const isRoute = imgType === "svg"; // SVG = we drew the actual route
+function mapBlock(mapResult: AuditMapResult | null, routeDescription: string): Array<Paragraph | Table> {
+  if (mapResult) {
+    const isRoute = mapResult.type === "svg";
     const captionText = isRoute
       ? "Audit route map — GPS trace from Survey123"
       : "School neighborhood map — GPS route not yet captured for this audit";
 
+    // Minimal 1×1 white PNG — used as SVG fallback when basemap wasn't fetched
+    const FALLBACK_PNG_1X1 = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQ" +
+      "AABjkB6QAAAABJRU5ErkJggg==",
+      "base64",
+    );
+
+    const imageRun = mapResult.type === "svg"
+      ? new ImageRun({
+          data: mapResult.image,
+          type: "svg",
+          transformation: { width: 560, height: 380 },
+          // docx SvgMediaOptions.fallback = RegularImageOptions (requires type + data)
+          fallback: {
+            type: "png",
+            data: mapResult.fallbackPng ?? FALLBACK_PNG_1X1,
+          },
+        })
+      : new ImageRun({
+          data: mapResult.image,
+          type: "png",
+          transformation: { width: 560, height: 380 },
+        });
+
     return [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [new ImageRun({ data: mapImage, transformation: { width: 560, height: 380 }, type: imgType })],
-      }),
+      new Paragraph({ alignment: AlignmentType.CENTER, children: [imageRun] }),
       new Paragraph({
         alignment: AlignmentType.CENTER,
         spacing: { before: 80 },
@@ -378,7 +390,7 @@ function severityColor(val: string): string {
 // 1. DOMI Internal Report
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildDomiReport(ctx: AuditContext, llm: DomiContent, photos: ReportPhoto[] = [], mapImage: Uint8Array | null = null): Promise<ArrayBuffer> {
+export async function buildDomiReport(ctx: AuditContext, llm: DomiContent, photos: ReportPhoto[] = [], mapImage: AuditMapResult | null = null): Promise<ArrayBuffer> {
   const children = [
 
     coverBlock(
@@ -530,7 +542,7 @@ export async function buildDomiReport(ctx: AuditContext, llm: DomiContent, photo
 // 2. School & Community Partner Report
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolCommunityContent, photos: ReportPhoto[] = [], mapImage: Uint8Array | null = null): Promise<ArrayBuffer> {
+export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolCommunityContent, photos: ReportPhoto[] = [], mapImage: AuditMapResult | null = null): Promise<ArrayBuffer> {
   const children = [
 
     coverBlock(
@@ -624,7 +636,7 @@ export async function buildSchoolCommunityReport(ctx: AuditContext, llm: SchoolC
 // 3. Public Community Update
 // ════════════════════════════════════════════════════════════════════════════════
 
-export async function buildPublicReport(ctx: AuditContext, llm: PublicContent, photos: ReportPhoto[] = [], mapImage: Uint8Array | null = null): Promise<ArrayBuffer> {
+export async function buildPublicReport(ctx: AuditContext, llm: PublicContent, photos: ReportPhoto[] = [], mapImage: AuditMapResult | null = null): Promise<ArrayBuffer> {
   const children = [
 
     new Table({

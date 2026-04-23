@@ -69,10 +69,10 @@ export async function fetchRouteMap(
   paths: RoutePaths,
   widthPx = 560,
   heightPx = 380,
-): Promise<Uint8Array | null> {
+): Promise<AuditMapResult | null> {
   const bbox = routeBbox(paths);
 
-  // 1. Fetch the basemap PNG for the route's exact bounding box
+  // 1. Fetch the basemap PNG — used both as SVG background and as Word fallback
   const mapParams = new URLSearchParams({
     bbox: `${bbox.xmin},${bbox.ymin},${bbox.xmax},${bbox.ymax}`,
     bboxSR: "4326",
@@ -84,6 +84,7 @@ export async function fetchRouteMap(
     f: "image",
   });
 
+  let basemapPng: Uint8Array | null = null;
   let basemapDataUri = "";
   try {
     const resp = await fetch(
@@ -92,8 +93,8 @@ export async function fetchRouteMap(
     );
     if (resp.ok) {
       const buf = await resp.arrayBuffer();
-      const b64 = Buffer.from(buf).toString("base64");
-      basemapDataUri = `data:image/png;base64,${b64}`;
+      basemapPng = new Uint8Array(buf);
+      basemapDataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
       console.log("[fetchRouteMap] Basemap fetched, size:", buf.byteLength);
     } else {
       console.warn("[fetchRouteMap] Basemap fetch failed:", resp.status);
@@ -102,18 +103,16 @@ export async function fetchRouteMap(
     console.warn("[fetchRouteMap] Basemap error:", String(err));
   }
 
-  // 2. Project route coordinates → pixel space
-  //    Simple linear (equirectangular) — accurate enough for city-scale routes.
+  // 2. Project route coordinates → pixel space (equirectangular, fine for city scale)
   const { xmin, ymin, xmax, ymax } = bbox;
   const toPixel = ([lon, lat]: number[]) => {
     const x = ((lon - xmin) / (xmax - xmin)) * widthPx;
     const y = (1 - (lat - ymin) / (ymax - ymin)) * heightPx;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   };
-
   const pointsStr = paths.flat().map(toPixel).join(" ");
 
-  // 3. Build SVG: basemap raster + route polyline (DOMI blue with white outline)
+  // 3. Build SVG: basemap raster + route polyline (DOMI blue, white halo)
   const svgLines = [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
@@ -121,17 +120,20 @@ export async function fetchRouteMap(
     basemapDataUri
       ? `  <image href="${basemapDataUri}" x="0" y="0" width="${widthPx}" height="${heightPx}"/>`
       : `  <rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="#D5E8F0"/>`,
-    // White halo for legibility
     `  <polyline points="${pointsStr}" fill="none" stroke="#FFFFFF" stroke-width="7"`,
     `    stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`,
-    // DOMI blue route
     `  <polyline points="${pointsStr}" fill="none" stroke="#1F4E79" stroke-width="4.5"`,
     `    stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>`,
     `</svg>`,
   ].join("\n");
 
   console.log("[fetchRouteMap] SVG route map built successfully");
-  return new TextEncoder().encode(svgLines);
+  return {
+    image: new TextEncoder().encode(svgLines),
+    type: "svg",
+    // basemapPng serves as the Word fallback for older clients that can't render SVG
+    fallbackPng: basemapPng ?? undefined,
+  };
 }
 
 // ── Strategy 2: Neighborhood map via Nominatim + ArcGIS tile export ───────────
@@ -201,30 +203,40 @@ async function fetchStaticMapImage(
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+export type AuditMapResult = {
+  image: Uint8Array;
+  /** "svg" = GPS route drawn; "png" = plain neighbourhood basemap */
+  type: "svg" | "png";
+  /** Raster fallback required by docx when type is "svg" */
+  fallbackPng?: Uint8Array;
+};
+
 /**
- * Main entry point. Tries to produce a map image using:
- *  1. Actual GPS route geometry (rendered with route in DOMI blue)
- *  2. Geocoded school address (plain neighborhood context map)
- *  3. null — caller falls back to text placeholder
+ * Main entry point. Tries to produce a map using:
+ *  1. Actual GPS route geometry (SVG with route in DOMI blue + PNG fallback)
+ *  2. Geocoded school address (plain PNG basemap)
+ *  3. null — caller renders a text placeholder
  */
 export async function fetchAuditMap(
   routePaths: RoutePaths | null,
   address: string,
-): Promise<Uint8Array | null> {
+): Promise<AuditMapResult | null> {
   if (routePaths) {
     console.log("[fetchAuditMap] Using route geometry —", routePaths.flat().length, "vertices");
-    const img = await fetchRouteMap(routePaths);
-    if (img) return img;
+    const result = await fetchRouteMap(routePaths);
+    if (result) return result;
     console.warn("[fetchAuditMap] Route map failed, falling back to geocoding");
   }
 
   console.log("[fetchAuditMap] Geocoding address:", address);
   const point = await geocodeAddress(address);
   if (!point) return null;
-  return fetchStaticMapImage(point);
+  const png = await fetchStaticMapImage(point);
+  if (!png) return null;
+  return { image: png, type: "png" };
 }
 
 /** @deprecated Use fetchAuditMap instead */
-export async function fetchSchoolAreaMap(address: string): Promise<Uint8Array | null> {
+export async function fetchSchoolAreaMap(address: string): Promise<AuditMapResult | null> {
   return fetchAuditMap(null, address);
 }
