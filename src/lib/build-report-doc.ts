@@ -30,6 +30,8 @@ export type ReportPhoto = {
   name: string;
   /** MIME type — e.g. "image/jpeg", "image/png" */
   contentType: string;
+  /** Optional caption text entered by the surveyor */
+  caption?: string;
 };
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -193,7 +195,14 @@ function photoGallery(photos: ReportPhoto[], heading = "Site Photos"): Array<Par
               new Paragraph({
                 alignment: AlignmentType.CENTER,
                 spacing: { before: 60 },
-                children: [new TextRun({ text: photo.name, font: "Arial", size: 16, color: C.medGray, italics: true })],
+                children: [new TextRun({
+                  // Show the surveyor's caption if provided; fall back to filename
+                  text: photo.caption ?? photo.name,
+                  font: "Arial",
+                  size: 16,
+                  color: photo.caption ? C.darkGray : C.medGray,
+                  italics: true,
+                })],
               }),
             ]
           : [new Paragraph({ children: [new TextRun({ text: "" })] })],

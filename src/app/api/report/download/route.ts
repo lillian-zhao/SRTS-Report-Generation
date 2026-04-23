@@ -35,7 +35,7 @@ async function fetchPhotoBinaries(
         const resp = await fetch(photo.url, { cache: "no-store" });
         if (!resp.ok) continue;
         const buf = await resp.arrayBuffer();
-        results.push({ data: new Uint8Array(buf), name: photo.name, contentType: photo.contentType });
+        results.push({ data: new Uint8Array(buf), name: photo.name, contentType: photo.contentType, caption: photo.caption });
       } catch {
         console.warn("[fetchPhotoBinaries] Failed to fetch", photo.url);
       }

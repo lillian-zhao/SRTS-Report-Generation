@@ -81,7 +81,40 @@ export type PhotoAttachment = {
   parentGlobalId: string;
   tableLayerId: number;
   tableName: string;
+  /** Optional caption entered by the surveyor alongside the photo */
+  caption?: string;
 };
+
+/** System field names to skip when looking for caption text. */
+const SYSTEM_FIELDS = new Set([
+  "objectid", "globalid", "parentglobalid",
+  "creationdate", "editdate", "creator", "editor",
+  "shape__length", "shape__area",
+]);
+
+/**
+ * Extracts the first non-empty, non-system text field from a table record's
+ * attributes — Survey123 stores photo captions as a regular attribute field
+ * in the related photos table, often named "caption" or similar.
+ */
+function extractCaption(attrs: Record<string, string | number | null>): string | undefined {
+  // Prefer a field literally named "caption" first
+  for (const key of Object.keys(attrs)) {
+    if (key.toLowerCase() === "caption") {
+      const v = attrs[key];
+      if (v !== null && v !== undefined && String(v).trim()) return String(v).trim();
+    }
+  }
+  // Fall back to the first non-system, non-null text field
+  for (const [key, val] of Object.entries(attrs)) {
+    if (SYSTEM_FIELDS.has(key.toLowerCase())) continue;
+    if (val === null || val === undefined) continue;
+    if (typeof val === "number") continue;
+    const s = String(val).trim();
+    if (s) return s;
+  }
+  return undefined;
+}
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -454,12 +487,15 @@ export async function queryRelatedPhotoAttachments(
     if (attachPayload.error || !attachPayload.attachmentGroups?.length) continue;
 
     for (const group of attachPayload.attachmentGroups) {
-      // Find the parent globalid for this table record
+      // Find the parent globalid and caption for this table record
       const tableRecord = tableRecords.find(
         (r) =>
           Number(r.attributes["objectid"] ?? r.attributes["OBJECTID"]) === group.parentObjectId,
       );
       const parentGlobalId = String(tableRecord?.attributes["parentglobalid"] ?? tableRecord?.attributes["PARENTGLOBALID"] ?? "");
+      const caption = tableRecord
+        ? extractCaption(tableRecord.attributes as Record<string, string | number | null>)
+        : undefined;
 
       for (const att of group.attachmentInfos) {
         if (!att.contentType.startsWith("image/")) continue;
@@ -474,6 +510,7 @@ export async function queryRelatedPhotoAttachments(
           parentGlobalId,
           tableLayerId: table.id,
           tableName: table.name,
+          caption,
         });
       }
     }
