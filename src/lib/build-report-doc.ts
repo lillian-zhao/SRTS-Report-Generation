@@ -211,25 +211,33 @@ function photoGallery(photos: ReportPhoto[], heading = "Site Photos"): Array<Par
   ];
 }
 
-function mapBlock(mapImage: Uint8Array | null, routeDescription: string): Array<Paragraph | Table> {
-  const caption = new Paragraph({
-    alignment: AlignmentType.CENTER,
-    spacing: { before: 80 },
-    children: [new TextRun({
-      text: mapImage
-        ? "School neighborhood map — GPS route not yet enabled in survey form"
-        : "[Map unavailable — GPS route not enabled in survey form]",
-      font: "Arial", size: 16, color: C.medGray, italics: true,
-    })],
-  });
+/** Detect image type from magic bytes so we can set the correct ImageRun type. */
+function detectMapImageType(data: Uint8Array): "png" | "svg" | "jpg" {
+  // SVG starts with '<' (0x3C) from "<?xml" or "<svg"
+  if (data[0] === 0x3c) return "svg";
+  // PNG magic: 0x89 0x50 0x4E 0x47
+  if (data[0] === 0x89 && data[1] === 0x50) return "png";
+  return "jpg";
+}
 
+function mapBlock(mapImage: Uint8Array | null, routeDescription: string): Array<Paragraph | Table> {
   if (mapImage) {
+    const imgType = detectMapImageType(mapImage);
+    const isRoute = imgType === "svg"; // SVG = we drew the actual route
+    const captionText = isRoute
+      ? "Audit route map — GPS trace from Survey123"
+      : "School neighborhood map — GPS route not yet captured for this audit";
+
     return [
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        children: [new ImageRun({ data: mapImage, transformation: { width: 560, height: 380 }, type: "png" })],
+        children: [new ImageRun({ data: mapImage, transformation: { width: 560, height: 380 }, type: imgType })],
       }),
-      caption,
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 80 },
+        children: [new TextRun({ text: captionText, font: "Arial", size: 16, color: C.medGray, italics: true })],
+      }),
     ];
   }
 
@@ -249,7 +257,7 @@ function mapBlock(mapImage: Uint8Array | null, routeDescription: string): Array<
               new TextRun({ text: "🗺", font: "Arial", size: 48 }),
             ]}),
             new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120 }, children: [
-              new TextRun({ text: "[AUDIT ROUTE MAP — Geotrace from ArcGIS Survey123]", font: "Arial", size: 18, color: C.medGray, italics: true }),
+              new TextRun({ text: "[AUDIT ROUTE MAP — GPS not yet captured for this audit]", font: "Arial", size: 18, color: C.medGray, italics: true }),
             ]}),
             ...(routeDescription ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60 }, children: [
               new TextRun({ text: routeDescription, font: "Arial", size: 18, color: C.medGray }),

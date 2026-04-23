@@ -15,11 +15,6 @@ import type { ArcGISFeature } from "./arcgis";
 type GeoPoint = { lat: number; lon: number };
 type RoutePaths = number[][][]; // ArcGIS polyline paths: paths[path][vertex][lon,lat]
 
-type PrintServiceResult = {
-  results?: Array<{ paramName: string; value: { url: string } }>;
-  error?: { message: string; details?: string[] };
-};
-
 // ── Route geometry helpers ────────────────────────────────────────────────────
 
 /**
@@ -61,12 +56,14 @@ function routeBbox(paths: RoutePaths, paddingFactor = 0.18) {
   };
 }
 
-// ── Strategy 1: Route map via ArcGIS PrintingTools ───────────────────────────
+// ── Strategy 1: Route map — basemap + SVG route overlay ──────────────────────
 
 /**
- * Renders the GPS route polyline on a street basemap using the free ArcGIS
- * Online PrintingTools GP service. No API key required — basemap and print
- * service are public ESRI-hosted utilities.
+ * Fetches the ArcGIS World Street Map basemap for the route's bounding box,
+ * then composites the GPS polyline on top as an SVG vector overlay.
+ *
+ * Returns an SVG Uint8Array (detected by callers via the leading "<" byte).
+ * No external API keys or binary dependencies required.
  */
 export async function fetchRouteMap(
   paths: RoutePaths,
@@ -75,125 +72,66 @@ export async function fetchRouteMap(
 ): Promise<Uint8Array | null> {
   const bbox = routeBbox(paths);
 
-  const webMapJson = {
-    mapOptions: {
-      showAttribution: false,
-      extent: { spatialReference: { wkid: 4326 }, ...bbox },
-    },
-    operationalLayers: [
-      {
-        id: "route_layer",
-        title: "Audit Route",
-        opacity: 1,
-        minScale: 0,
-        maxScale: 0,
-        featureCollection: {
-          layers: [
-            {
-              layerDefinition: {
-                geometryType: "esriGeometryPolyline",
-                objectIdField: "OBJECTID",
-                fields: [{ name: "OBJECTID", type: "esriFieldTypeOID", alias: "OBJECTID" }],
-              },
-              featureSet: {
-                geometryType: "esriGeometryPolyline",
-                features: [
-                  {
-                    geometry: { paths, spatialReference: { wkid: 4326 } },
-                    attributes: { OBJECTID: 1 },
-                  },
-                ],
-              },
-              drawingInfo: {
-                renderer: {
-                  type: "simple",
-                  symbol: {
-                    type: "esriSLS",
-                    style: "esriSLSSolid",
-                    color: [31, 78, 121, 230], // DOMI blue
-                    width: 4,
-                  },
-                },
-              },
-            },
-          ],
-        },
-      },
-    ],
-    baseMap: {
-      baseMapLayers: [
-        {
-          url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer",
-          opacity: 1,
-          visibility: true,
-          title: "World Street Map",
-        },
-      ],
-      title: "World Street Map",
-    },
-    exportOptions: { outputSize: [widthPx, heightPx], dpi: 96 },
-  };
-
-  const body = new URLSearchParams({
-    f: "json",
-    Web_Map_as_JSON: JSON.stringify(webMapJson),
-    Format: "PNG32",
-    Layout_Template: "MAP_ONLY",
+  // 1. Fetch the basemap PNG for the route's exact bounding box
+  const mapParams = new URLSearchParams({
+    bbox: `${bbox.xmin},${bbox.ymin},${bbox.xmax},${bbox.ymax}`,
+    bboxSR: "4326",
+    size: `${widthPx},${heightPx}`,
+    imageSR: "4326",
+    format: "png32",
+    transparent: "false",
+    dpi: "96",
+    f: "image",
   });
 
-  const printUrl =
-    "https://utility.arcgisonline.com/arcgis/rest/services/Utilities/PrintingTools/GPServer/Export%20Web%20Map%20Task/execute";
-
-  console.log("[fetchRouteMap] Calling ArcGIS Print service...");
-
+  let basemapDataUri = "";
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25000);
-
-    const response = await fetch(printUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "SRTS-Walkability-Audit-Report-Generator/1.0 (pittsburghpa.gov)",
-      },
-      body: body.toString(),
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-
-    if (!response.ok) {
-      console.warn("[fetchRouteMap] Print service HTTP error:", response.status);
-      return null;
+    const resp = await fetch(
+      `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?${mapParams.toString()}`,
+      { cache: "no-store" },
+    );
+    if (resp.ok) {
+      const buf = await resp.arrayBuffer();
+      const b64 = Buffer.from(buf).toString("base64");
+      basemapDataUri = `data:image/png;base64,${b64}`;
+      console.log("[fetchRouteMap] Basemap fetched, size:", buf.byteLength);
+    } else {
+      console.warn("[fetchRouteMap] Basemap fetch failed:", resp.status);
     }
-
-    const result = (await response.json()) as PrintServiceResult;
-
-    if (result.error) {
-      console.warn("[fetchRouteMap] Print service error:", result.error.message);
-      return null;
-    }
-
-    const outputFile = result.results?.find((r) => r.paramName === "Output_File");
-    if (!outputFile?.value?.url) {
-      console.warn("[fetchRouteMap] No output URL:", JSON.stringify(result).slice(0, 300));
-      return null;
-    }
-
-    console.log("[fetchRouteMap] Fetching image:", outputFile.value.url);
-    const imgResp = await fetch(outputFile.value.url, { cache: "no-store" });
-    if (!imgResp.ok) {
-      console.warn("[fetchRouteMap] Image fetch failed:", imgResp.status);
-      return null;
-    }
-
-    const buf = await imgResp.arrayBuffer();
-    console.log("[fetchRouteMap] Success, size:", buf.byteLength);
-    return new Uint8Array(buf);
   } catch (err) {
-    console.warn("[fetchRouteMap] Failed:", String(err));
-    return null;
+    console.warn("[fetchRouteMap] Basemap error:", String(err));
   }
+
+  // 2. Project route coordinates → pixel space
+  //    Simple linear (equirectangular) — accurate enough for city-scale routes.
+  const { xmin, ymin, xmax, ymax } = bbox;
+  const toPixel = ([lon, lat]: number[]) => {
+    const x = ((lon - xmin) / (xmax - xmin)) * widthPx;
+    const y = (1 - (lat - ymin) / (ymax - ymin)) * heightPx;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  };
+
+  const pointsStr = paths.flat().map(toPixel).join(" ");
+
+  // 3. Build SVG: basemap raster + route polyline (DOMI blue with white outline)
+  const svgLines = [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
+    `  width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">`,
+    basemapDataUri
+      ? `  <image href="${basemapDataUri}" x="0" y="0" width="${widthPx}" height="${heightPx}"/>`
+      : `  <rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="#D5E8F0"/>`,
+    // White halo for legibility
+    `  <polyline points="${pointsStr}" fill="none" stroke="#FFFFFF" stroke-width="7"`,
+    `    stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`,
+    // DOMI blue route
+    `  <polyline points="${pointsStr}" fill="none" stroke="#1F4E79" stroke-width="4.5"`,
+    `    stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>`,
+    `</svg>`,
+  ].join("\n");
+
+  console.log("[fetchRouteMap] SVG route map built successfully");
+  return new TextEncoder().encode(svgLines);
 }
 
 // ── Strategy 2: Neighborhood map via Nominatim + ArcGIS tile export ───────────
