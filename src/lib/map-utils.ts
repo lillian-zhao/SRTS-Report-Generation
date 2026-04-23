@@ -2,12 +2,14 @@
  * Utilities for generating a static map image for the audit report.
  *
  * Two strategies, tried in order:
- *  1. If route geometry (polyline paths) is available, use the ArcGIS Online
- *     PrintingTools GP service to render the actual GPS route on a street basemap.
+ *  1. If route geometry (polyline paths) is available, fetch the ArcGIS World
+ *     Street Map basemap scoped to the route bounding box, then composite the
+ *     GPS polyline on top using sharp (server-side PNG compositing).
  *  2. Otherwise, geocode the school address via Nominatim (OpenStreetMap) and
- *     fetch a plain neighborhood basemap tile from ArcGIS World Street Map.
+ *     fetch a plain neighbourhood basemap tile from ArcGIS World Street Map.
  */
 
+import sharp from "sharp";
 import type { ArcGISFeature } from "./arcgis";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -56,12 +58,12 @@ function routeBbox(paths: RoutePaths, paddingFactor = 0.18) {
   };
 }
 
-// ── Strategy 1: Route map — basemap PNG scoped to route bounding box ─────────
+// ── Strategy 1: Route map — basemap PNG + sharp polyline overlay ─────────────
 
 /**
  * Fetches the ArcGIS World Street Map basemap PNG scoped to the GPS route's
- * bounding box. Returns it as a plain PNG so Word embeds it natively without
- * SVG rendering quirks.
+ * bounding box, then uses `sharp` to composite the route polyline on top.
+ * Returns a single PNG with the route drawn in DOMI blue with a white halo.
  */
 export async function fetchRouteMap(
   paths: RoutePaths,
@@ -70,6 +72,7 @@ export async function fetchRouteMap(
 ): Promise<AuditMapResult | null> {
   const bbox = routeBbox(paths);
 
+  // 1. Fetch the street basemap PNG
   const mapParams = new URLSearchParams({
     bbox: `${bbox.xmin},${bbox.ymin},${bbox.xmax},${bbox.ymax}`,
     bboxSR: "4326",
@@ -81,21 +84,60 @@ export async function fetchRouteMap(
     f: "image",
   });
 
+  let basemapBuf: Buffer | null = null;
   try {
     const resp = await fetch(
       `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?${mapParams.toString()}`,
       { cache: "no-store" },
     );
-    if (!resp.ok) {
+    if (resp.ok) {
+      basemapBuf = Buffer.from(await resp.arrayBuffer());
+      console.log("[fetchRouteMap] Basemap fetched, size:", basemapBuf.byteLength);
+    } else {
       console.warn("[fetchRouteMap] Basemap fetch failed:", resp.status);
-      return null;
     }
-    const buf = await resp.arrayBuffer();
-    console.log("[fetchRouteMap] Basemap PNG fetched, size:", buf.byteLength);
-    return { image: new Uint8Array(buf), type: "png" };
   } catch (err) {
     console.warn("[fetchRouteMap] Basemap error:", String(err));
-    return null;
+  }
+
+  if (!basemapBuf) return null;
+
+  // 2. Project GPS coordinates → pixel space (equirectangular, fine for city scale)
+  const { xmin, ymin, xmax, ymax } = bbox;
+  const toPixel = ([lon, lat]: number[]) => {
+    const x = ((lon - xmin) / (xmax - xmin)) * widthPx;
+    const y = (1 - (lat - ymin) / (ymax - ymin)) * heightPx;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  };
+  const pointsStr = paths.flat().map(toPixel).join(" ");
+
+  // 3. Build a route-only SVG (transparent background — just the polyline)
+  const svgOverlay = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${widthPx}" height="${heightPx}">`,
+    // White halo for legibility against light/dark tiles
+    `  <polyline points="${pointsStr}" fill="none" stroke="#FFFFFF" stroke-width="7"`,
+    `    stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`,
+    // DOMI blue route line
+    `  <polyline points="${pointsStr}" fill="none" stroke="#1F4E79" stroke-width="4.5"`,
+    `    stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>`,
+    // Start dot
+    `  <circle cx="${toPixel(paths[0][0]).split(",")[0]}" cy="${toPixel(paths[0][0]).split(",")[1]}" r="7" fill="#1F4E79" stroke="#FFFFFF" stroke-width="2"/>`,
+    // End dot
+    `  <circle cx="${toPixel(paths[paths.length - 1][paths[paths.length - 1].length - 1]).split(",")[0]}" cy="${toPixel(paths[paths.length - 1][paths[paths.length - 1].length - 1]).split(",")[1]}" r="7" fill="#C00000" stroke="#FFFFFF" stroke-width="2"/>`,
+    `</svg>`,
+  ].join("\n");
+
+  // 4. Composite the SVG overlay onto the basemap PNG using sharp
+  try {
+    const compositedBuf = await sharp(basemapBuf)
+      .composite([{ input: Buffer.from(svgOverlay), top: 0, left: 0 }])
+      .png()
+      .toBuffer();
+    console.log("[fetchRouteMap] Route composited successfully, size:", compositedBuf.byteLength);
+    return { image: new Uint8Array(compositedBuf), type: "png" };
+  } catch (err) {
+    console.warn("[fetchRouteMap] sharp composite failed, returning plain basemap:", String(err));
+    return { image: new Uint8Array(basemapBuf), type: "png" };
   }
 }
 

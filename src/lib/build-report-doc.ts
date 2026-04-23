@@ -214,10 +214,9 @@ function photoGallery(photos: ReportPhoto[], heading = "Site Photos"): Array<Par
 
 function mapBlock(mapResult: AuditMapResult | null, routeDescription: string): Array<Paragraph | Table> {
   if (mapResult) {
-    // mapResult.type is always "png" — SVG approach was dropped for Word compatibility.
-    // "svg" branch kept for type-safety but shouldn't be reached in practice.
-    const captionText = mapResult.type === "png" && routeDescription
-      ? "Audit route map — area shown corresponds to GPS trace from Survey123"
+    // routeDescription present means a GPS route was captured and drawn on the map.
+    const captionText = routeDescription
+      ? "Audit route map — GPS trace from Survey123 (blue line: start \u25CF to end \u25CF)"
       : "School neighborhood map";
 
     const imageRun = new ImageRun({
