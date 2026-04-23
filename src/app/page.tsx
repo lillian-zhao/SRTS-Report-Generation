@@ -56,6 +56,8 @@ export default function Home() {
   const [downloadingType, setDownloadingType] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [previewExpanded, setPreviewExpanded] = useState(true);
+  const [previewMode, setPreviewMode] = useState<"summary" | "by-user">("summary");
+  const [rawPostFeatures, setRawPostFeatures] = useState<Array<Record<string, string | number | null>> | null>(null);
 
   const selectedAudit = useMemo(
     () => audits.find((audit) => audit.id === selectedAuditId),
@@ -290,6 +292,7 @@ export default function Home() {
     setAuditContext(null);
     setPostAllFields(null);
     setPreAllFields(null);
+    setRawPostFeatures(null);
     setRecordCounts(null);
     setShowRawFields(false);
     setIsGenerating(true);
@@ -330,6 +333,10 @@ export default function Home() {
             if (parsed.data.auditContext) setAuditContext(parsed.data.auditContext as Record<string, string>);
             if (parsed.data.postAllFields) setPostAllFields(parsed.data.postAllFields as Record<string, unknown>);
             if (parsed.data.preAllFields) setPreAllFields(parsed.data.preAllFields as Record<string, unknown>);
+            if (parsed.data.postFeatures) {
+              const features = parsed.data.postFeatures as Array<{ attributes: Record<string, string | number | null> }>;
+              setRawPostFeatures(features.map((f) => f.attributes));
+            }
             const counts = (parsed.data.counts as { preFeatures?: number; postFeatures?: number }) ?? {};
             setRecordCounts({ pre: counts.preFeatures ?? 0, post: counts.postFeatures ?? 0 });
           }
@@ -481,12 +488,28 @@ export default function Home() {
         <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-4">
           <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white ${isLoggedIn ? "bg-blue-600" : "bg-gray-300"}`}>2</span>
           <h2 className="text-lg font-semibold text-gray-900">Select an Audit</h2>
-          {selectedAudit && (
-            <span className="ml-auto flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
-              Audit selected
-            </span>
-          )}
+          <div className="ml-auto flex items-center gap-3">
+            {hasAudits && (
+              <button
+                type="button"
+                title="Reload audits from ArcGIS"
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                disabled={isLoadingAudits}
+                onClick={() => token && loadAudits(token)}
+              >
+                <svg className={`w-3.5 h-3.5 ${isLoadingAudits ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            )}
+            {selectedAudit && (
+              <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                Audit selected
+              </span>
+            )}
+          </div>
         </div>
         <div className="px-6 py-8">
           {!isLoggedIn ? (
@@ -529,188 +552,264 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Preview Survey Data ── */}
-      {selectedAudit && (
-        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-6 py-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shrink-0">3</span>
-              <span className="text-xl">🔍</span>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Preview Survey Data</h2>
-                <p className="text-sm text-gray-500">Verify the data that will be used to generate your report.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              {!auditContext && (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-lg bg-gray-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  disabled={isGenerating}
-                  onClick={handleGenerate}
-                >
-                  {isGenerating ? (
-                    <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Loading…</>
-                  ) : "Load Preview"}
-                </button>
-              )}
-              {auditContext && (
-                <button
-                  type="button"
-                  className="text-sm text-gray-400 hover:text-gray-600 underline"
-                  onClick={handleGenerate}
-                >
-                  Refresh
-                </button>
-              )}
-              {auditContext && (
-                <button
-                  type="button"
-                  className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
-                  onClick={() => setPreviewExpanded((v) => !v)}
-                >
-                  {previewExpanded ? (
-                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7"/></svg> Collapse</>
-                  ) : (
-                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg> Expand</>
-                  )}
-                </button>
-              )}
+      {/* ── Step 3: Preview Survey Data ── */}
+      <section className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-opacity ${!isLoggedIn || !selectedAudit ? "opacity-40 pointer-events-none" : "border-gray-200"}`}>
+        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white shrink-0 ${isLoggedIn && selectedAudit ? "bg-blue-600" : "bg-gray-300"}`}>3</span>
+            <span className="text-xl">🔍</span>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Preview Survey Data</h2>
+              <p className="text-sm text-gray-500">Verify the data that will be used to generate your report.</p>
             </div>
           </div>
-
-          <div className={previewExpanded ? "px-6 py-6" : "hidden"}>
-            {!auditContext && !isGenerating && (
-              <p className="text-gray-500 text-sm">Click <strong>Load Preview</strong> to fetch and display the survey responses for this audit.</p>
-            )}
-            {isGenerating && (
-              <div className="flex items-center gap-3 text-gray-500">
-                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                <span className="text-sm">
-                  {streamMessages.length > 0 ? streamMessages[streamMessages.length - 1] : "Fetching survey data…"}
-                </span>
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Summary / By User toggle — only visible when data is loaded */}
+            {auditContext && (
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 transition-colors ${previewMode === "summary" ? "bg-gray-800 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                  onClick={() => setPreviewMode("summary")}
+                >
+                  Summary
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${previewMode === "by-user" ? "bg-gray-800 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                  onClick={() => setPreviewMode("by-user")}
+                >
+                  By User
+                </button>
               </div>
+            )}
+            {!auditContext && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg bg-gray-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={isGenerating}
+                onClick={handleGenerate}
+              >
+                {isGenerating ? (
+                  <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Loading…</>
+                ) : "Load Preview"}
+              </button>
             )}
             {auditContext && (
-              <div className="flex flex-col gap-6">
-                {(
-                  [
-                    {
-                      heading: "Audit Overview",
-                      icon: "📅",
-                      fields: [
-                        { key: "school", label: "School" },
-                        { key: "address", label: "Address" },
-                        { key: "dateDisplay", label: "Date" },
-                        { key: "time", label: "Time" },
-                        { key: "weather", label: "Weather" },
-                        { key: "coordinator", label: "Lead Coordinator" },
-                        { key: "schoolContact", label: "School Contact" },
-                        { key: "initiatedBy", label: "Audit Initiated By" },
-                        { key: "previousAudit", label: "Previously Audited" },
-                        { key: "participantsPresent", label: "All Participants Present" },
-                        { key: "participantsMissing", label: "Missing Participants" },
-                        { key: "routeDescription", label: "Route Description" },
-                        { key: "preExistingConcerns", label: "Pre-existing Concerns" },
-                      ],
-                    },
-                    {
-                      heading: "Student Travel Modes",
-                      icon: "🚶",
-                      fields: [
-                        { key: "modeWalk", label: "Walk" },
-                        { key: "modeBike", label: "Bike" },
-                        { key: "modeTransit", label: "Public Transit" },
-                        { key: "modeBus", label: "School Bus" },
-                        { key: "modeDropOff", label: "Dropped Off" },
-                        { key: "studentCount", label: "Total Enrollment" },
-                        { key: "designatedRoutes", label: "Designated Walking Routes" },
-                        { key: "designatedRouteDetails", label: "Route Details" },
-                        { key: "mainConcerns", label: "Main Concerns Before Audit" },
-                        { key: "landmarks", label: "Notable Landmarks" },
-                        { key: "parentConcerns", label: "Parent/Student Concerns Reported" },
-                        { key: "parentConcernDetails", label: "Concern Details" },
-                      ],
-                    },
-                    {
-                      heading: "Infrastructure Findings",
-                      icon: "🏗️",
-                      fields: [
-                        { key: "adaSignage", label: "ADA-Compliant Signage" },
-                        { key: "vegetationBlocking", label: "Vegetation Blocking Sidewalks" },
-                        { key: "poolingWater", label: "Pooling Water at Curb Ramps" },
-                        { key: "immediateHazards", label: "Immediate Hazards" },
-                        { key: "trippingHazards", label: "Tripping Hazards (>1 inch)" },
-                        { key: "sidewalkGaps", label: "Critical Sidewalk Gaps" },
-                        { key: "grantOpportunities", label: "Grant Opportunities" },
-                        { key: "grantDetails", label: "Grant Details" },
-                        { key: "nearbyConstruction", label: "Nearby Construction" },
-                        { key: "constructionDetails", label: "Construction Details" },
-                        { key: "additionalInfrastructureNotes", label: "Additional Notes" },
-                      ],
-                    },
-                    {
-                      heading: "Traffic & Safety Findings",
-                      icon: "🚦",
-                      fields: [
-                        { key: "conflictingSignage", label: "Conflicting/Unclear Signage" },
-                        { key: "wayfinding", label: "Wayfinding Signage Present" },
-                        { key: "wayfindingLocations", label: "Suggested Wayfinding Locations" },
-                        { key: "trafficConditions", label: "Peak vs. Non-Peak Traffic Difference" },
-                        { key: "crashHistory", label: "Known Crash History" },
-                        { key: "crashDetails", label: "Crash Details" },
-                        { key: "crosswalks", label: "Crosswalks Visible & Maintained" },
-                        { key: "vehicleSpeeds", label: "Vehicle Speeds Appropriate" },
-                        { key: "crossingGuard", label: "Crossing Guard Present" },
-                        { key: "schoolZoneSigns", label: "School Zone Signs Visible" },
-                        { key: "dropOffConflict", label: "Drop-Off Zone Pedestrian Conflict" },
-                        { key: "pedestrianGenerators", label: "Pedestrian Generators Along Route" },
-                        { key: "pedestrianGeneratorDetails", label: "Generator Details" },
-                        { key: "additionalTrafficNotes", label: "Additional Notes" },
-                      ],
-                    },
-                    {
-                      heading: "Summary",
-                      icon: "📋",
-                      fields: [
-                        { key: "topConcern1", label: "Top Concern #1" },
-                        { key: "topConcern2", label: "Top Concern #2" },
-                        { key: "topConcern3", label: "Top Concern #3" },
-                        { key: "overallSeverity", label: "Overall Severity" },
-                        { key: "safetyRating", label: "Student Safety Rating" },
-                        { key: "comfortableLetChild", label: "Comfortable Letting Child Walk Alone" },
-                        { key: "comfortDetails", label: "Details" },
-                        { key: "additionalNotes", label: "Additional Notes" },
-                        { key: "additionalComments", label: "Additional Comments" },
-                      ],
-                    },
-                  ] as { heading: string; icon: string; fields: { key: string; label: string }[] }[]
-                ).map(({ heading, icon, fields }) => {
-                  const populated = fields.filter((f) => auditContext[f.key]?.trim());
-                  if (populated.length === 0) return null;
-                  return (
-                    <div key={heading}>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-base">{icon}</span>
-                        <h3 className="font-semibold text-gray-800">{heading}</h3>
-                        <span className="text-xs text-gray-400">{populated.length} field{populated.length !== 1 ? "s" : ""}</span>
-                      </div>
-                      <div className="rounded-xl border border-gray-200 overflow-hidden">
-                        {populated.map((f, i) => (
-                          <div key={f.key} className={`flex gap-4 px-4 py-3 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
-                            <span className="w-52 shrink-0 text-sm font-medium text-gray-500">{f.label}</span>
-                            <span className="text-sm text-gray-900">{auditContext[f.key]}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <button
+                type="button"
+                title="Reload preview data"
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                disabled={isGenerating}
+                onClick={handleGenerate}
+              >
+                <svg className={`w-3.5 h-3.5 ${isGenerating ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            )}
+            {auditContext && (
+              <button
+                type="button"
+                className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+                onClick={() => setPreviewExpanded((v) => !v)}
+              >
+                {previewExpanded ? (
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7"/></svg> Collapse</>
+                ) : (
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg> Expand</>
+                )}
+              </button>
             )}
           </div>
-        </section>
-      )}
+        </div>
+
+        <div className={previewExpanded ? "px-6 py-6" : "hidden"}>
+          {!isLoggedIn && <p className="text-gray-400 italic">Complete Step 1 first.</p>}
+          {isLoggedIn && !selectedAudit && <p className="text-gray-400 italic">Select an audit in Step 2 first.</p>}
+          {isLoggedIn && selectedAudit && !auditContext && !isGenerating && (
+            <p className="text-gray-500 text-sm">Click <strong>Load Preview</strong> to fetch and display the survey responses for this audit.</p>
+          )}
+          {isGenerating && (
+            <div className="flex items-center gap-3 text-gray-500">
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+              <span className="text-sm">
+                {streamMessages.length > 0 ? streamMessages[streamMessages.length - 1] : "Fetching survey data…"}
+              </span>
+            </div>
+          )}
+
+          {/* ── Summary view ── */}
+          {auditContext && previewMode === "summary" && (
+            <div className="flex flex-col gap-6">
+              {(
+                [
+                  {
+                    heading: "Audit Overview",
+                    icon: "📅",
+                    fields: [
+                      { key: "school", label: "School" },
+                      { key: "address", label: "Address" },
+                      { key: "dateDisplay", label: "Date" },
+                      { key: "time", label: "Time" },
+                      { key: "weather", label: "Weather" },
+                      { key: "coordinator", label: "Lead Coordinator" },
+                      { key: "schoolContact", label: "School Contact" },
+                      { key: "initiatedBy", label: "Audit Initiated By" },
+                      { key: "previousAudit", label: "Previously Audited" },
+                      { key: "participantsPresent", label: "All Participants Present" },
+                      { key: "participantsMissing", label: "Missing Participants" },
+                      { key: "routeDescription", label: "Route Description" },
+                      { key: "preExistingConcerns", label: "Pre-existing Concerns" },
+                    ],
+                  },
+                  {
+                    heading: "Student Travel Modes",
+                    icon: "🚶",
+                    fields: [
+                      { key: "modeWalk", label: "Walk" },
+                      { key: "modeBike", label: "Bike" },
+                      { key: "modeTransit", label: "Public Transit" },
+                      { key: "modeBus", label: "School Bus" },
+                      { key: "modeDropOff", label: "Dropped Off" },
+                      { key: "studentCount", label: "Total Enrollment" },
+                      { key: "designatedRoutes", label: "Designated Walking Routes" },
+                      { key: "designatedRouteDetails", label: "Route Details" },
+                      { key: "mainConcerns", label: "Main Concerns Before Audit" },
+                      { key: "landmarks", label: "Notable Landmarks" },
+                      { key: "parentConcerns", label: "Parent/Student Concerns Reported" },
+                      { key: "parentConcernDetails", label: "Concern Details" },
+                    ],
+                  },
+                  {
+                    heading: "Infrastructure Findings",
+                    icon: "🏗️",
+                    fields: [
+                      { key: "adaSignage", label: "ADA-Compliant Signage" },
+                      { key: "vegetationBlocking", label: "Vegetation Blocking Sidewalks" },
+                      { key: "poolingWater", label: "Pooling Water at Curb Ramps" },
+                      { key: "immediateHazards", label: "Immediate Hazards" },
+                      { key: "trippingHazards", label: "Tripping Hazards (>1 inch)" },
+                      { key: "sidewalkGaps", label: "Critical Sidewalk Gaps" },
+                      { key: "grantOpportunities", label: "Grant Opportunities" },
+                      { key: "grantDetails", label: "Grant Details" },
+                      { key: "nearbyConstruction", label: "Nearby Construction" },
+                      { key: "constructionDetails", label: "Construction Details" },
+                      { key: "additionalInfrastructureNotes", label: "Additional Notes" },
+                    ],
+                  },
+                  {
+                    heading: "Traffic & Safety Findings",
+                    icon: "🚦",
+                    fields: [
+                      { key: "conflictingSignage", label: "Conflicting/Unclear Signage" },
+                      { key: "wayfinding", label: "Wayfinding Signage Present" },
+                      { key: "wayfindingLocations", label: "Suggested Wayfinding Locations" },
+                      { key: "trafficConditions", label: "Peak vs. Non-Peak Traffic Difference" },
+                      { key: "crashHistory", label: "Known Crash History" },
+                      { key: "crashDetails", label: "Crash Details" },
+                      { key: "crosswalks", label: "Crosswalks Visible & Maintained" },
+                      { key: "vehicleSpeeds", label: "Vehicle Speeds Appropriate" },
+                      { key: "crossingGuard", label: "Crossing Guard Present" },
+                      { key: "schoolZoneSigns", label: "School Zone Signs Visible" },
+                      { key: "dropOffConflict", label: "Drop-Off Zone Pedestrian Conflict" },
+                      { key: "pedestrianGenerators", label: "Pedestrian Generators Along Route" },
+                      { key: "pedestrianGeneratorDetails", label: "Generator Details" },
+                      { key: "additionalTrafficNotes", label: "Additional Notes" },
+                    ],
+                  },
+                  {
+                    heading: "Summary",
+                    icon: "📋",
+                    fields: [
+                      { key: "topConcern1", label: "Top Concern #1" },
+                      { key: "topConcern2", label: "Top Concern #2" },
+                      { key: "topConcern3", label: "Top Concern #3" },
+                      { key: "overallSeverity", label: "Overall Severity" },
+                      { key: "safetyRating", label: "Student Safety Rating" },
+                      { key: "comfortableLetChild", label: "Comfortable Letting Child Walk Alone" },
+                      { key: "comfortDetails", label: "Details" },
+                      { key: "additionalNotes", label: "Additional Notes" },
+                      { key: "additionalComments", label: "Additional Comments" },
+                    ],
+                  },
+                ] as { heading: string; icon: string; fields: { key: string; label: string }[] }[]
+              ).map(({ heading, icon, fields }) => {
+                const populated = fields.filter((f) => auditContext[f.key]?.trim());
+                if (populated.length === 0) return null;
+                return (
+                  <div key={heading}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-base">{icon}</span>
+                      <h3 className="font-semibold text-gray-800">{heading}</h3>
+                      <span className="text-xs text-gray-400">{populated.length} field{populated.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 overflow-hidden">
+                      {populated.map((f, i) => (
+                        <div key={f.key} className={`flex gap-4 px-4 py-3 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+                          <span className="w-52 shrink-0 text-sm font-medium text-gray-500">{f.label}</span>
+                          <span className="text-sm text-gray-900">{auditContext[f.key]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── By User view ── */}
+          {auditContext && previewMode === "by-user" && rawPostFeatures && (
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-gray-500">
+                {rawPostFeatures.length} participant{rawPostFeatures.length !== 1 ? "s" : ""} submitted a post-survey response for this audit.
+              </p>
+              {rawPostFeatures.map((attrs, idx) => {
+                const name = String(attrs["what_is_your_full_name"] ?? "Unknown");
+                const role = String(attrs["what_is_your_role_today"] ?? "");
+                const time = String(attrs["time_of_audit"] ?? "");
+                const skipKeys = new Set(["objectid", "globalid", "creationdate", "editdate", "creator", "editor", "shape__length", "shape__area", "date_of_audit", "what_is_your_full_name", "what_is_your_role_today", "whats_your_email_address", "time_of_audit", "weather_conditions", "what_is_your_role_today_other", "weather_conditions_other"]);
+                const populated = Object.entries(attrs).filter(([k, v]) => {
+                  if (skipKeys.has(k.toLowerCase())) return false;
+                  if (v === null || v === undefined) return false;
+                  const s = String(v).trim();
+                  return s !== "" && s !== "null";
+                });
+                return (
+                  <div key={idx} className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm font-bold shrink-0">
+                        {name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{name}</p>
+                        <p className="text-xs text-gray-500">{[role, time ? `submitted at ${time}` : ""].filter(Boolean).join(" · ")}</p>
+                      </div>
+                      <span className="ml-auto text-xs text-gray-400">{populated.length} field{populated.length !== 1 ? "s" : ""} filled</span>
+                    </div>
+                    {populated.length > 0 ? (
+                      <div>
+                        {populated.map(([key, val], i) => {
+                          const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 60);
+                          return (
+                            <div key={key} className={`flex gap-4 px-4 py-2.5 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+                              <span className="w-52 shrink-0 text-xs font-medium text-gray-400">{label}</span>
+                              <span className="text-sm text-gray-800">{String(val)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="px-4 py-3 text-sm text-gray-400 italic">No additional fields filled in.</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ── Step 4: Download Reports ── */}
       <section className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-opacity ${!selectedAudit ? "opacity-40 pointer-events-none" : "border-gray-200"}`}>
