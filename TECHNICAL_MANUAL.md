@@ -191,7 +191,12 @@ npm run dev
 
 ## 7. Deployment on Vercel
 
-**Deployed URL:** https://srts-report-generation.vercel.app/
+**Deployed URL:** https://srts-report-generation.vercel.app/  
+**Developer Tools:** https://srts-report-generation.vercel.app/dev — a separate debugging interface (not linked from the main UI; navigate to `/dev` directly). It has four tabs:
+- **Token** — view, test, or manually paste an ArcGIS token
+- **Layer Fields** — inspect all field names and types on both the pre- and post-survey layers
+- **Audits** — see the full list of audits as the app resolves them
+- **Raw Data** — stream and view the complete JSON payload for any audit, including all pre/post survey fields, photo metadata, and GPS geometry
 
 ### Initial setup
 
