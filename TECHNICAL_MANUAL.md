@@ -198,7 +198,7 @@ npm run dev
 1. Push code to the GitHub repository
 2. Connect the GitHub repository to a Vercel project
 3. In Vercel **Settings → Environment Variables**, add **only** `ANTHROPIC_API_KEY` as a secret — all other variables are already defined in `vercel.json` in the repository and are picked up automatically at deploy time
-4. In the [ArcGIS OAuth app settings](https://pittsburghpa.maps.arcgis.com/home/item.html?id=62dc7685a3334f24a0ad5cec18372116) (Pittsburgh ArcGIS Online — this is where the OAuth credentials live and where allowed redirect URIs are managed), add the production callback URI (`https://srts-report-generation.vercel.app/api/arcgis/oauth/callback`) as an allowed redirect URI
+4. In the [ArcGIS OAuth app settings](https://pittsburghpa.maps.arcgis.com/home/item.html?id=62dc7685a3334f24a0ad5cec18372116) — this is the Pittsburgh ArcGIS Online item where OAuth credentials are stored and redirect URIs are whitelisted — add the production callback URI (`https://srts-report-generation.vercel.app/api/arcgis/oauth/callback`) as an allowed redirect URI. [Video Tutorial](https://youtu.be/zf2qNmEzdiw)
 5. Deploy
 
 Vercel automatically redeploys when changes are pushed to the `main` branch.
@@ -208,7 +208,7 @@ Vercel automatically redeploys when changes are pushed to the `main` branch.
 If the project is transferred to a new Vercel account or the domain changes, **both** of the following must be updated:
 
 1. `ARCGIS_REFERER` and `ARCGIS_OAUTH_REDIRECT_URI` environment variables in `vercel.json` (and redeploy)
-2. The allowed redirect URI in the [ArcGIS OAuth app settings](https://pittsburghpa.maps.arcgis.com/home/item.html?id=62dc7685a3334f24a0ad5cec18372116) — this is the Pittsburgh ArcGIS Online item where OAuth credentials are stored and redirect URIs are whitelisted
+2. The allowed redirect URI in the [ArcGIS OAuth app settings](https://pittsburghpa.maps.arcgis.com/home/item.html?id=62dc7685a3334f24a0ad5cec18372116) — this is the Pittsburgh ArcGIS Online item where OAuth credentials are stored and redirect URIs are whitelisted. [Video Tutorial](https://youtu.be/zf2qNmEzdiw)
 
 Failing to do either will break the login flow.
 
